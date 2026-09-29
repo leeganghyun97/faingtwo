@@ -1,0 +1,12 @@
+name: geniesim-repro
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - -r requirements-lock.txt
+
+# Isaac Sim 6.0.1, Isaac Lab 6.1.14 and CUDA-enabled PyTorch are intentionally
+# installed through the NVIDIA/Isaac distribution, not this portable conda
+# file. See docs/DEPENDENCY_COMPATIBILITY.md.

@@ -22,7 +22,191 @@
   </div>
 </div>
 
+# Stage-1A A–G reproducibility profile
+
+This branch packages the Candidate-A Stage-1A data/validation/runtime paths
+without embedding real data, production assets, credentials, or checkpoints.
+The canonical safety default is dry-run. Contact and Bilateral are intermediate
+events; **Grasp Success means Stable bilateral contact only**.
+
+## 1. Purpose
+
+The reproducibility profile covers Keyboard-v3 collection and validation,
+measured-state OPEN reset gating, source-freeze checks, Method A–G dry-run/live
+entrypoints, episode-level grasp evaluation, and bounded safety checks. The
+exact method definitions are in
+[`docs/METHOD_A_TO_G_MATRIX.md`](docs/METHOD_A_TO_G_MATRIX.md).
+
+## 2. Supported platform
+
+The verified stack is Ubuntu 22.04.5, ROS 2 Humble, Python 3.12.14, NVIDIA
+driver 580.178.04, CUDA 12.8 PyTorch 2.10, Isaac Sim 6.0.1, Isaac Lab 6.1.14,
+and cuRobo 0.7.7 dev on an RTX 5080 16GB. See
+[`docs/DEPENDENCY_COMPATIBILITY.md`](docs/DEPENDENCY_COMPATIBILITY.md).
+
+## 3. Clone
+
+Use the private repository URL supplied by the project owner:
+
+```bash
+git clone <private-repository-url>
+cd genie_sim
+```
+
+Do not substitute the public upstream URL when project-only Stage-1A code is
+required.
+
+## 4. External assets
+
+Production USD/mesh packs, Candidate-A overlays, datasets, and learned
+checkpoints are intentionally excluded. Obtain them from an authorized source,
+verify their SHA-256 values, then configure local paths:
+
+```bash
+cp .env.example .env
+${EDITOR:-nano} .env
+```
+
+See [`docs/EXTERNAL_ASSETS.md`](docs/EXTERNAL_ASSETS.md) and
+[`docs/DATA_MIGRATION.md`](docs/DATA_MIGRATION.md). Missing inputs are a
+fail-closed `NOT_READY`, not a reason to weaken a hash check.
+
+## 5. Environment installation
+
+```bash
+./scripts/bootstrap.sh
+```
+
+This creates `.venv` for portable analysis/tests. Isaac Sim, Isaac Lab, CUDA,
+ROS 2, and cuRobo remain external platform installs. Set
+`GENIESIM_ISAAC_PYTHON` to the Isaac interpreter.
+
+## 6. Preflight
+
+```bash
+./scripts/preflight.sh --profile static
+./scripts/preflight.sh --profile live --method A
+```
+
+Static checks never start Isaac. Live preflight checks the interpreter,
+packages, external assets, hashes, and legacy source-freeze layout without
+issuing robot commands.
+
+## 7. Data collection
+
+Collection is dry-run unless `--execute-live` is present:
+
+```bash
+./scripts/collect_data.sh \
+  --collection-root "$GENIESIM_DATA_ROOT/keyboard_v3" \
+  --episode-id episode-000001
+
+# After inspecting the printed command and passing live preflight:
+./scripts/collect_data.sh --execute-live \
+  --collection-root "$GENIESIM_DATA_ROOT/keyboard_v3" \
+  --episode-id episode-000001 --target-residual-mm 20
+```
+
+The terminal collection path controls simulation only; it is not a real-robot
+command launcher.
+
+## 8. Dataset validation
+
+```bash
+./scripts/validate_dataset.sh
+./scripts/validate_dataset.sh \
+  --collection-root "$GENIESIM_DATA_ROOT/keyboard_v3" \
+  --output "$GENIESIM_OUTPUT_ROOT/keyboard_v3_validation.json"
+```
+
+The first command validates a tiny synthetic fixture. Dataset frame/unit/rate,
+split, outcome, and leakage contracts are documented in
+[`docs/DATASET_CONTRACT.md`](docs/DATASET_CONTRACT.md).
+
+## 9. Method A–G
+
+Every wrapper defaults to a 25-env/6K dry-run and calls the existing official
+fresh-process supervisor; no method logic is duplicated:
+
+```bash
+./scripts/run_method_a.sh
+./scripts/run_method_b.sh
+./scripts/run_method_c.sh
+./scripts/run_method_d.sh
+./scripts/run_method_e.sh
+./scripts/run_method_f.sh
+./scripts/run_method_g.sh
+```
+
+Live execution is explicit and refuses an existing output directory:
+
+```bash
+./scripts/run_method_c.sh --execute-live \
+  --output-root "$GENIESIM_OUTPUT_ROOT/method_c_6k_seed42"
+```
+
+Method E is diagnostic privileged authority, not deployable production logic.
+Methods F/G require the frozen student checkpoint and preserve their documented
+advisory/auxiliary authority boundaries.
+
+## 10. Evaluation and ablation
+
+Reports must include Contact, Bilateral Candidate, Grasp Success (Stable),
+Contact→Bilateral, Bilateral→Stable, post-bilateral contact loss, premature
+pre-CLOSE contact, and safety violations. Use
+`scripts/audit_g2_stage1a_canonical_methods.py` to normalize existing JSON
+reports; historical reset-confounded results remain reference-only.
+
+## 11. Tests
+
+```bash
+./scripts/smoke_test.sh
+python3 -m pytest -q tests/test_reproducibility_release.py
+```
+
+The default smoke is CPU/static. A bounded Isaac smoke is opt-in:
+
+```bash
+./scripts/smoke_test.sh --isaac G
+```
+
+## 12. W&B
+
+Keep credentials outside Git (`wandb login` or a secret manager). Set
+`WANDB_PROJECT`, `WANDB_ENTITY`, and `WANDB_MODE` in local `.env`. Static tests
+do not contact W&B; live methods create independent runs.
+
+## 13. Real-robot safety
+
+These wrappers do not authorize hardware. A real-robot entrypoint must require
+its own explicit execution flag and `GENIESIM_ALLOW_REAL_ROBOT=1`, then pass
+joint/velocity/acceleration, collision, controller, ROS-topic, and emergency
+stop preflight. Never bypass the canonical gripper controller with direct
+finger, torque, or current commands.
+
+## 14. Common errors
+
+- `LIVE_METHOD_PREFLIGHT_FAILED`: configure Isaac Python and external assets;
+  do not alter hashes.
+- `OUTPUT_REFUSES_OVERWRITE`: choose a new output directory.
+- `SOURCE_FREEZE` failure: restore the exact authorized artifact bundle.
+- AppLauncher constructor futex timeout: the fresh-process supervisor records
+  a zero-transition failed attempt and retries up to its bounded limit.
+- GPU/Isaac unavailable: record `NOT_RUN`; static success is not a live pass.
+
+## 15. Known limitations
+
+Clone alone cannot legally or technically supply proprietary/large external
+assets. The working tree contains legacy research scripts with machine-local
+absolute paths; canonical wrappers are path-injected, while wholesale legacy
+rewrites are intentionally out of scope. Full Method A–G GPU runs and real
+robot runtime must be repeated on an authorized workstation after migration.
+
 # 1. Genie Sim 3.0
+
+G2 오른팔 7-DoF keyboard teleoperation과 elbow null-space 제어는
+[`docs/G2_7DOF_KEYBOARD_TELEOP.md`](docs/G2_7DOF_KEYBOARD_TELEOP.md)에 정리되어 있습니다.
+
 Genie Sim is the simulation platform from AgiBot. It provides developers with a complete toolchain for environment reconstruction, scene generalization, data collection, and automated evaluation. Its core module, Genie Sim Benchmark is a standardized tool dedicated to establishing the most accurate and authoritative evaluation for embodied intelligence.
 
 The platform integrates 3D reconstruction with visual generation to create a high-fidelity simulation environment. It pioneers LLM-driven technology to generate vast simulation scenes and evaluation configurations in minutes. The evaluation system covers 200+ tasks across 100,000+ scenarios to establish a comprehensive capability profile for models. Genie Sim also opens over 10,000 hours synthetic dataset including real-world robot operation scenarios.

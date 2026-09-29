@@ -1,0 +1,12 @@
+# Portable analysis/test layer validated in the Isaac Python 3.12 environment.
+# GPU PyTorch and Isaac packages are pinned separately in the compatibility
+# document because their wheel indexes and driver contract are platform-bound.
+gymnasium==1.2.1
+h5py==3.16.0
+numpy==2.3.1
+pillow==12.2.0
+protobuf==7.36.1
+pytest==9.1.1
+PyYAML==6.0.3
+trimesh==4.11.1
+wandb==0.26.1

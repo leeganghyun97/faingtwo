@@ -1,0 +1,18 @@
+{
+  "control_hz": 50,
+  "episodes": [
+    {
+      "contains_real_sensor_data": false,
+      "episode_id": "synthetic-000001",
+      "grasp_success_authority": "STABLE_ONLY",
+      "rows": 2
+    }
+  ],
+  "frame": "robot_root",
+  "physics_hz": 500,
+  "quaternion_order": "XYZW",
+  "rgbd_hz": 25,
+  "schema": "geniesim_repro_sample_dataset_v1",
+  "synthetic": true,
+  "translation_unit": "m"
+}

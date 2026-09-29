@@ -9,3 +9,4 @@ pyyaml
 ruckig
 shapely
 trimesh
+wandb>=0.25,<0.27

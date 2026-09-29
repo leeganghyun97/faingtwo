@@ -1,0 +1,2 @@
+{"episode_id":"synthetic-000001","timestep":0,"timestamp_s":0.0,"action_xyz_m":[0.0,0.0,0.0],"gripper":"OPEN","contact":false,"bilateral":false,"stable":false}
+{"episode_id":"synthetic-000001","timestep":1,"timestamp_s":0.02,"action_xyz_m":[0.001,0.0,0.0],"gripper":"OPEN","contact":false,"bilateral":false,"stable":false}

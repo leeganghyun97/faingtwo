@@ -16,6 +16,17 @@ assets
 output/
 record*/
 *.hdf5
+*.h5
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.bag
+*.db3
+*.mp4
+*.avi
+*.mov
+*.mkv
 
 *.tar
 *.tar.gz
@@ -42,8 +53,49 @@ log/
 
 logs/
 logs
+wandb/
+artifacts/
+output/
+outputs/
+checkpoints/
+datasets/
+data/
 
 .cache/
 .cache
+
+# Local credentials and machine-specific settings.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_ed25519
+
+# Runtime receipts accidentally emitted at repository root by legacy tools.
+/episodes.csv
+/manifest.json
+/metrics.csv
+/perception_diagnostics_env_*.json
+/runtime_progress.json
+/runtime_stage_timing.json
+/training_config.json
+/transitions.csv
+/vector_runtime_status.json
+/vram_capacity_advisory.json
+/0
+
+# Local/vendor worktrees and non-redistributable engineering material.
+/RLinf/
+/openpi/
+/genie_sim/
+/workspace/
+/G2 도면 파일/
+/G2 도면 파일.zip
+
+# The full Genie Sim asset pack, Candidate-A overlays, checkpoints and real
+# datasets are external inputs.  Only manifests/documentation may be tracked.
+/source/geniesim/assets/
 
 **/*.egg-info

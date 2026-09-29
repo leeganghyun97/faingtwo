@@ -1,0 +1,77 @@
+{
+  "assets": [
+    {
+      "environment_variable": "GENIESIM_CANDIDATE_A_USD",
+      "id": "candidate_a_usd",
+      "legacy_relative_path": "artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg/robot_fix.usda",
+      "redistribution": "EXCLUDED_UNCONFIRMED",
+      "required_for": [
+        "collection",
+        "method_A",
+        "method_B",
+        "method_C",
+        "method_D",
+        "method_E",
+        "method_F",
+        "method_G"
+      ],
+      "sha256": "d1ffc70c1e7ee628348742e6f2ed824e15cbeb5e790f06400b8b28d7abe03a28"
+    },
+    {
+      "environment_variable": "GENIESIM_GRU_CHECKPOINT",
+      "id": "human_grasp_gru_checkpoint",
+      "legacy_relative_path": "artifacts/g2_keyboard_v3_recovery_20260924_v1/GRU_CAUSAL_CLOSE_EDGE_GPU_3K_WANDB_V1/BEST_HUMAN_GRASP_GRU_BC.pt",
+      "redistribution": "EXCLUDED_LEARNED_ARTIFACT",
+      "required_for": [
+        "collection",
+        "hybrid_runtime"
+      ],
+      "sha256": "fdec68aef317e7cd1758bf4b48f4fe20207353ebd51d8d20e4378a0d2324d510"
+    },
+    {
+      "environment_variable": "GENIESIM_FROZEN_STUDENT_CHECKPOINT",
+      "id": "conditional_coral_frozen_student",
+      "legacy_relative_path": "artifacts/external/CONDITIONAL_CORAL_FROZEN_STUDENT.pt",
+      "redistribution": "EXCLUDED_LEARNED_ARTIFACT",
+      "required_for": [
+        "method_F",
+        "method_G"
+      ],
+      "sha256": "1834e70db6fc3a56e77350248961c24d3606dc1ce9385ead462ee5349d31bff2"
+    },
+    {
+      "environment_variable": "GENIESIM_FAR_REACH_BC_CHECKPOINT",
+      "id": "far_reach_bc_checkpoint",
+      "legacy_relative_path": "artifacts/external/far_reach_bc_best.pt",
+      "redistribution": "EXCLUDED_LEARNED_ARTIFACT",
+      "required_for": [
+        "collection",
+        "all_live_methods"
+      ],
+      "sha256": "bcb1b7ed0455453c38762d9da00f9db30b5e811ddff44fe1fdbc0957588a14bc"
+    },
+    {
+      "environment_variable": "GENIESIM_RESIDUAL_ACTOR_CHECKPOINT",
+      "id": "stage1a_residual_actor_checkpoint",
+      "legacy_relative_path": "artifacts/g2_candidate_a_close_sac_exception_safe_qualification_20260925_v5/checkpoints/stage1a_residual_actor.pt",
+      "redistribution": "EXCLUDED_LEARNED_ARTIFACT",
+      "required_for": [
+        "all_live_methods"
+      ],
+      "sha256": "bbc32ed96704e80058b5d9791194dca31d5862019a96edcb9beef48d2f85959d"
+    },
+    {
+      "environment_variable": "GENIESIM_ASSET_ROOT",
+      "id": "geniesim_asset_pack",
+      "legacy_relative_path": "source/geniesim/assets",
+      "redistribution": "OFFICIAL_OR_INTERNAL_DISTRIBUTION_ONLY",
+      "required_for": [
+        "isaac_scene",
+        "collection",
+        "all_live_methods"
+      ],
+      "sha256": null
+    }
+  ],
+  "schema": "geniesim_external_assets_v1"
+}

@@ -1,0 +1,71 @@
+{
+  "canonical_budget": 6000,
+  "canonical_num_envs": 25,
+  "methods": {
+    "A": {
+      "name": "V3 CURRENT",
+      "privileged_runtime_authority": false,
+      "purpose": "Current deterministic CLOSE control baseline with Reward V3 and HER_FORCE",
+      "runtime_variant_6000": "V3_CURRENT_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_CURRENT_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": false
+    },
+    "B": {
+      "name": "V3.1",
+      "privileged_runtime_authority": false,
+      "purpose": "V3.1 ablation retaining the historical lateral CLOSE gate",
+      "runtime_variant_6000": "V3_1_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_1_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": false
+    },
+    "C": {
+      "name": "V3.1 lateral-off",
+      "privileged_runtime_authority": false,
+      "purpose": "V3.1 with lateral error retained as telemetry but removed from hard CLOSE admission",
+      "runtime_variant_6000": "V3_1_LATERAL_OFF_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_1_LATERAL_OFF_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": false
+    },
+    "D": {
+      "name": "V3.2",
+      "privileged_runtime_authority": false,
+      "purpose": "V3.2 multi-change reward/phase ablation",
+      "runtime_variant_6000": "V3_2_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_2_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": false
+    },
+    "E": {
+      "name": "Privileged geometry hard-gate",
+      "privileged_runtime_authority": true,
+      "purpose": "Diagnostic-only privileged geometry CLOSE authority comparison",
+      "runtime_variant_6000": "V3_PRIVILEGED_GEOMETRY_HARD_GATE_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_PRIVILEGED_GEOMETRY_HARD_GATE_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": false
+    },
+    "F": {
+      "name": "FSM advisory",
+      "privileged_runtime_authority": false,
+      "purpose": "V3.1 lateral-off deterministic FSM authority with frozen student advisory logging",
+      "runtime_variant_6000": "V3_1_LATERAL_OFF_FSM_ADVISORY_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_1_LATERAL_OFF_FSM_ADVISORY_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": true
+    },
+    "G": {
+      "name": "CURRENT GRU + Privileged",
+      "privileged_runtime_authority": false,
+      "purpose": "CURRENT runtime plus causal GRU auxiliary trained from privileged binary/signed-margin targets",
+      "runtime_variant_6000": "V3_CURRENT_GRU_PRIVILEGED_HER_FORCE_RESET_FIXED_6K_25ENV",
+      "runtime_variant_7500": "V3_CURRENT_GRU_PRIVILEGED_HER_FORCE_RESET_FIXED_7P5K_25ENV",
+      "student_advisory": true
+    }
+  },
+  "schema": "geniesim_stage1a_methods_v1",
+  "shared_contract": {
+    "grasp_success": "stable bilateral primary-pad contact for 10 control steps",
+    "live_entrypoint": "scripts/diagnostics/run_g2_stage1a_current_retry_supervisor.py",
+    "production_default": "dry-run",
+    "replay": "HER_FORCE",
+    "reset": "measured-state OPEN restore plus fresh geometry receipt",
+    "reward": "Stage-1A Reward V3 family as selected by runtime variant"
+  }
+}
