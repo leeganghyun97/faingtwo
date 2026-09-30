@@ -491,12 +491,21 @@ def precontact_camera_visibility_failure(env) -> torch.Tensor:
         env._g2_precontact_camera_loss_age_s = torch.zeros(
             env.num_envs, dtype=torch.float32, device=env.device
         )
+        env._g2_precontact_camera_visibility_last_result = None
+        env._g2_precontact_camera_visibility_last_loss_now = torch.zeros(
+            env.num_envs, dtype=torch.bool, device=env.device
+        )
         return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
     if not hasattr(env, "_g2_camera_visibility_evaluator"):
         env._g2_camera_visibility_evaluator = G2DualCameraVisibilityEvaluator(env)
     result = env._g2_camera_visibility_evaluator.evaluate(
         require_rendered_depth=True
     )
+    # Durable terminal diagnostics must consume the exact visibility result
+    # that the termination predicate used.  Caching this immutable receipt is
+    # deliberately observational: it does not recompute the predicate, alter
+    # its grace timer, or expose privileged geometry to the policy.
+    env._g2_precontact_camera_visibility_last_result = result
     from .g2_lift_task_mdp import contact_grasp_telemetry
 
     _, _, bilateral, _, _ = contact_grasp_telemetry(env)
@@ -512,6 +521,7 @@ def precontact_camera_visibility_failure(env) -> torch.Tensor:
         torch.zeros_like(previous_age),
     )
     env._g2_precontact_camera_loss_age_s = age_s
+    env._g2_precontact_camera_visibility_last_loss_now = loss_now
     return loss_now & (age_s >= result_sandbox_camera_loss_grace_s(env))
 
 
