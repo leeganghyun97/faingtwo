@@ -25,8 +25,9 @@ fi
 
 mkdir -p "${OUTPUT_DIR}"
 rclone copy \
-  "${RCLONE_REMOTE},root_folder_id=${DRIVE_FOLDER_ID}:" \
+  "${RCLONE_REMOTE}:" \
   "${OUTPUT_DIR}" \
+  --drive-root-folder-id "${DRIVE_FOLDER_ID}" \
   --progress \
   --checkers 8 \
   --transfers 4 \
