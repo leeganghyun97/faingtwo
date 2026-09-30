@@ -18,4 +18,5 @@ PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "${python_bin}" -m pytest -q \
   "${root}/tests/test_reproducibility_release.py" \
   "${root}/tests/test_g2_stage1a_grasp_evaluation_contract.py" \
   "${root}/tests/test_g2_stage1a_reset_open_restore.py" \
+  "${root}/tests/test_g2_stage1a_open_table_clearance.py" \
   "${root}/tests/test_g2_stage1a_close_readiness_advisory.py"

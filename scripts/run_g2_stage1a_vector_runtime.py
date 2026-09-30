@@ -166,6 +166,7 @@ def _vector_source_freeze(
         ROOT / "source/geniesim/rl/sac/stage1a_vector_telemetry.py",
         ROOT / "source/geniesim/rl/sac/stage1a_isaac_vector_smoke.py",
         ROOT / "source/geniesim/rl/sac/stage1a_reset_open_restore.py",
+        ROOT / "source/geniesim/rl/sac/stage1a_open_table_clearance.py",
         ROOT / "source/geniesim/rl/sac/stage1a_termination_receipt.py",
         ROOT / "source/geniesim/rl/sac/stage1a_forbidden_contact_diagnostic.py",
         ROOT / "source/geniesim/rl/isaaclab/g2_collision_authority.py",

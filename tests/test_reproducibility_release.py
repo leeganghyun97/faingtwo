@@ -195,3 +195,18 @@ def test_transfer_bundle_binds_exact_source_repository() -> None:
     assert receipt["branch"] == "stage1a-portable-training"
     assert len(receipt["commit"]) == 40
     assert receipt["url"].endswith("/leeganghyun97/genie_sim.git")
+
+
+def test_open_table_clearance_is_frozen_and_in_portable_static_suite() -> None:
+    runtime_launcher = (
+        ROOT / "scripts/run_g2_stage1a_vector_runtime.py"
+    ).read_text(encoding="utf-8")
+    static_suite = (ROOT / "scripts/g2/01_static_tests.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        'ROOT / "source/geniesim/rl/sac/stage1a_open_table_clearance.py"'
+        in runtime_launcher
+    )
+    assert '"${root}/tests/test_g2_stage1a_open_table_clearance.py"' in static_suite
