@@ -243,7 +243,7 @@ def test_transfer_bundle_binds_exact_source_repository() -> None:
     receipt = _portable_builder().source_repository_receipt()
     assert receipt["branch"] == "stage1a-portable-training"
     assert len(receipt["commit"]) == 40
-    assert receipt["url"].endswith("/leeganghyun97/genie_sim.git")
+    assert receipt["url"].endswith("/leeganghyun97/faingtwo.git")
 
 
 def test_open_table_clearance_is_frozen_and_in_portable_static_suite() -> None:

@@ -3,7 +3,7 @@
 # Author: Genie Sim Team
 # License: Mozilla Public License Version 2.0
 
-"""Build the standalone Keyboard-v3 source release and Drive transfer bundle.
+"""Build the FainGTwo Keyboard-v3 source release and Drive transfer bundle.
 
 The command never overwrites an existing destination. It copies only declared
 inputs, emits per-file SHA-256 receipts, and keeps Isaac Sim/Lab, ROS2 runtime
@@ -357,7 +357,7 @@ def export_transfer(args: argparse.Namespace) -> int:
 
     readme = destination / "README_UPLOAD.md"
     readme.write_text(
-        "# G2 Stage-1A data/model transfer bundle\n\n"
+        "# FainGTwo Stage-1A data/model transfer bundle\n\n"
         "Upload the sibling `.tar.gz` and `.sha256` files to Google Drive. "
         "On the target machine, verify SHA-256 before extracting. This bundle "
         "contains authorized local-transfer artifacts and must not be committed to Git.\n\n"

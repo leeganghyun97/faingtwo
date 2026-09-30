@@ -1,9 +1,9 @@
-# G2 Stage-1A grasp 재현 가이드
+# FainGTwo G2 Stage-1A grasp 재현 가이드
 
 이 문서는 `stage1a-portable-training` 브랜치에서 다른 PC로 G2 Stage-1A를
 옮길 때 사용하는 canonical 안내서다. Isaac Sim/Lab, 대용량 asset, dataset,
 checkpoint, W&B credential은 Git에 넣지 않는다. 소스는 Git clone으로 받고,
-외부 파일은 `g2-stage1a-data-models.tar.gz`로 별도 전달한다.
+외부 파일은 `faingtwo-stage1a-data-models.tar.gz`로 별도 전달한다.
 
 ## 1. Canonical runtime
 
@@ -64,23 +64,22 @@ training에 필수가 아니며 Keyboard 전용 repo에는 포함하지 않는�
 ## 5. 새 PC 설치
 
 ```bash
-git clone https://github.com/leeganghyun97/genie_sim.git
-cd genie_sim
-git checkout stage1a-portable-training
+git clone https://github.com/leeganghyun97/faingtwo.git
+cd faingtwo
 
 # Isaac Sim 6.0.1 + Isaac Lab 6.1.14는 별도로 설치한 뒤:
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-lock.txt
 
 # Google Drive에서 받은 archive를 검증/해제:
-sha256sum -c g2-stage1a-data-models-20260930-r8.tar.gz.sha256
-tar -xzf g2-stage1a-data-models-20260930-r8.tar.gz
+sha256sum -c faingtwo-stage1a-data-models-20260930-r12.tar.gz.sha256
+tar -xzf faingtwo-stage1a-data-models-20260930-r12.tar.gz
 python3 scripts/repro/minimal_training_bundle.py verify \
-  --bundle /path/to/g2-stage1a-data-models-20260930-r8/runtime/minimal_bundle
+  --bundle /path/to/faingtwo-stage1a-data-models-20260930-r12/runtime/minimal_bundle
 python3 scripts/repro/minimal_training_bundle.py install \
-  --bundle /path/to/g2-stage1a-data-models-20260930-r8/runtime/minimal_bundle \
+  --bundle /path/to/faingtwo-stage1a-data-models-20260930-r12/runtime/minimal_bundle \
   --frozen-student-checkpoint \
-    /path/to/g2-stage1a-data-models-20260930-r8/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \
+    /path/to/faingtwo-stage1a-data-models-20260930-r12/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \
   --write-env --isaac-python /path/to/isaac/python \
   --output-root /path/to/output
 
@@ -153,7 +152,7 @@ python3 scripts/repro/build_portable_deliverables.py keyboard-source \
 
 ```bash
 python3 scripts/repro/build_portable_deliverables.py transfer-bundle \
-  --output "$GENIESIM_DATA_ROOT/releases/g2-stage1a-data-models"
+  --output "$GENIESIM_DATA_ROOT/releases/faingtwo-stage1a-data-models"
 ```
 
 ## 9. Known issues

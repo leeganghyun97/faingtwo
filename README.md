@@ -22,7 +22,7 @@
   </div>
 </div>
 
-# Stage-1A A–G reproducibility profile
+# FainGTwo — Stage-1A A–G reproducibility profile
 
 This branch packages the Candidate-A Stage-1A data/validation/runtime paths
 without embedding real data, production assets, credentials, or checkpoints.
@@ -51,15 +51,16 @@ and cuRobo 0.7.7 dev on an RTX 5080 16GB. See
 
 ## 3. Clone
 
-Use the private repository URL supplied by the project owner:
+Clone the canonical FainGTwo repository:
 
 ```bash
-git clone <private-repository-url>
-cd genie_sim
+git clone https://github.com/leeganghyun97/faingtwo.git
+cd faingtwo
 ```
 
-Do not substitute the public upstream URL when project-only Stage-1A code is
-required.
+The internal Python package remains named `geniesim` for compatibility with
+the upstream runtime; the repository and transfer deliverables are named
+`faingtwo`.
 
 ## 4. External assets
 
