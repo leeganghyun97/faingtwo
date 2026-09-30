@@ -55,7 +55,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", choices=tuple("ABCDEFG"), required=True)
     parser.add_argument("--accepted-transitions", type=int, choices=(6000, 7500), default=6000)
-    parser.add_argument("--num-envs", type=int, choices=(25,), default=25)
+    parser.add_argument("--num-envs", type=int, choices=(10, 25), default=25)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--wandb-project", default=os.environ.get("WANDB_PROJECT", "geniesim-stage1a-repro"))
@@ -88,7 +88,7 @@ def main() -> int:
         "--python", str(isaac_python),
         "--runner", str(RUNNER),
         "--seed", str(args.seed),
-        "--num-envs", "25",
+        "--num-envs", str(args.num_envs),
         "--accepted-transitions", str(accepted),
         "--runtime-variant", variant,
         "--wandb-project", args.wandb_project,
@@ -126,7 +126,7 @@ def main() -> int:
         "name": method["name"],
         "purpose": method["purpose"],
         "runtime_variant": variant,
-        "num_envs": 25,
+        "num_envs": args.num_envs,
         "accepted_transitions": accepted,
         "smoke": args.smoke,
         "execute_live": args.execute_live,
@@ -160,16 +160,25 @@ def main() -> int:
         return 0
     if missing or hash_mismatch:
         raise SystemExit("LIVE_METHOD_PREFLIGHT_FAILED")
+    runtime_env = os.environ.copy()
+    source_root = str(ROOT / "source")
+    current_pythonpath = runtime_env.get("PYTHONPATH", "")
+    runtime_env["PYTHONPATH"] = (
+        f"{source_root}{os.pathsep}{current_pythonpath}"
+        if current_pythonpath
+        else source_root
+    )
     preflight = subprocess.run(
         [str(PREFLIGHT), "--profile", "live", "--method", args.method],
         cwd=ROOT,
         check=False,
+        env=runtime_env,
     )
     if preflight.returncode != 0:
         raise SystemExit("LIVE_METHOD_PREFLIGHT_FAILED")
     if output.exists():
         raise SystemExit(f"OUTPUT_REFUSES_OVERWRITE:{output}")
-    return subprocess.run(command, cwd=ROOT, check=False).returncode
+    return subprocess.run(command, cwd=ROOT, check=False, env=runtime_env).returncode
 
 
 if __name__ == "__main__":

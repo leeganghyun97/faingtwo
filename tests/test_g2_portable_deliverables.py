@@ -75,3 +75,15 @@ def test_new_portable_files_have_no_local_user_path_or_secret_assignment() -> No
         assert "/home/fain" not in text
         assert "/data/fain" not in text
         assert "WANDB_API_KEY=" not in text
+
+
+def test_live_wrappers_bind_the_current_clone_source_tree() -> None:
+    common = (ROOT / "scripts/g2/_common.sh").read_text(encoding="utf-8")
+    installer = (ROOT / "scripts/install_minimal_isaac_deps.sh").read_text(
+        encoding="utf-8"
+    )
+    launcher = (ROOT / "scripts/repro/run_method.py").read_text(encoding="utf-8")
+    assert 'export PYTHONPATH="${G2_REPO_ROOT}/source' in common
+    assert 'pip install -e "${root}/source"' in installer
+    assert 'source_root = str(ROOT / "source")' in launcher
+    assert "choices=(10, 25)" in launcher

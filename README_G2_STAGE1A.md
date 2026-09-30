@@ -83,6 +83,9 @@ python3 scripts/repro/minimal_training_bundle.py install \
   --bundle /path/to/g2-stage1a-data-models/runtime/minimal_bundle \
   --write-env --isaac-python /path/to/isaac/python \
   --output-root /path/to/output
+
+# Isaac Python에 최소 dependency와 현재 clone의 GenieSim source를 연결:
+./scripts/install_minimal_isaac_deps.sh
 ```
 
 `.env`에는 최소 `GENIESIM_ISAAC_PYTHON`, `GENIESIM_ASSET_ROOT`,

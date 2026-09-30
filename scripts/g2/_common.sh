@@ -2,6 +2,7 @@
 set -euo pipefail
 
 G2_REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export PYTHONPATH="${G2_REPO_ROOT}/source${PYTHONPATH:+:${PYTHONPATH}}"
 if [[ -f "${G2_REPO_ROOT}/.env" ]]; then
   set -a
   # shellcheck disable=SC1091

@@ -6,4 +6,5 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 isaac_python="${GENIESIM_ISAAC_PYTHON:?GENIESIM_ISAAC_PYTHON must point to Isaac Python}"
 
 "${isaac_python}" -m pip install -r "${root}/requirements-minimal-training.txt"
-"${isaac_python}" -c 'import h5py, torch, wandb; print("MINIMAL_ISAAC_RUNTIME_DEPS: PASS")'
+SKIP_DEPS=1 "${isaac_python}" -m pip install -e "${root}/source"
+"${isaac_python}" -c 'import geniesim, h5py, torch, wandb; print("MINIMAL_ISAAC_RUNTIME_DEPS: PASS")'
