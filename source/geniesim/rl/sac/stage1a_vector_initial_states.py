@@ -438,6 +438,7 @@ def select_stage1a_vector_initial_states(
     collection_allow_duplicate_source_samples: bool = False,
     collection_prefer_nearest_handoff_source: bool = False,
     measured_open_restore_min_ee_cube_center_distance_m: float | None = None,
+    diagnostic_source_row_indices: tuple[int, ...] | None = None,
 ) -> VectorInitialStateSelection:
     """Select ``num_envs`` distinct, source-attested OPEN rows.
 
@@ -457,6 +458,13 @@ def select_stage1a_vector_initial_states(
     ):
         raise Stage1AVectorInitialStateError(
             "MEASURED_OPEN_RESTORE_SOURCE_DISTANCE_INVALID"
+        )
+    if diagnostic_source_row_indices is not None and (
+        len(diagnostic_source_row_indices) != num_envs
+        or any(type(value) is not int or value < 0 for value in diagnostic_source_row_indices)
+    ):
+        raise Stage1AVectorInitialStateError(
+            "DIAGNOSTIC_SOURCE_ROW_ALLOCATION_INVALID"
         )
     base = selected_pregrasp_initial_state()
     if collection_source_catalog is not None:
@@ -562,7 +570,7 @@ def select_stage1a_vector_initial_states(
                 and valid_rgb
             ):
                 candidates.append(index)
-        if len(candidates) < num_envs:
+        if diagnostic_source_row_indices is None and len(candidates) < num_envs:
             raise Stage1AVectorInitialStateError(
                 f"INSUFFICIENT_DISTINCT_SOURCE_ROWS:{len(candidates)}<{num_envs}"
             )
@@ -571,7 +579,18 @@ def select_stage1a_vector_initial_states(
         # existing 30-mm safety guard window.
         tail_start = max(0, len(candidates) - max(num_envs * 4, num_envs))
         tail = candidates[tail_start:]
-        if selection_seed is None:
+        if diagnostic_source_row_indices is not None:
+            requested = tuple(int(value) for value in diagnostic_source_row_indices)
+            if any(value not in candidates for value in requested):
+                raise Stage1AVectorInitialStateError(
+                    "DIAGNOSTIC_SOURCE_ROW_NOT_CANONICAL_VALID"
+                )
+            chosen = list(requested)
+            selection_rule = (
+                "EXPLICIT_READ_ONLY_FORBIDDEN_COLLISION_DIAGNOSTIC_SOURCE_"
+                "ALLOCATION_WITHOUT_POLICY_OR_SAFETY_CHANGE"
+            )
+        elif selection_seed is None:
             # Preserve the existing fixed runtime selection exactly.  This is
             # the default for training/evaluation and its receipt remains
             # byte-for-byte compatible with earlier vector artifacts.
@@ -612,7 +631,7 @@ def select_stage1a_vector_initial_states(
                 "WITH_CURRENT_AND_NEXT_THREE_ROWS_ABOVE_EXISTING_30MM_HANDOFF_"
                 "WITHOUT_TEACHER_OR_OUTCOME_LOOKUP"
             )
-        if len(set(chosen)) != num_envs:
+        if diagnostic_source_row_indices is None and len(set(chosen)) != num_envs:
             raise Stage1AVectorInitialStateError("VECTOR_SOURCE_SELECTION_DUPLICATE")
         samples = tuple(
             replace(
@@ -636,7 +655,10 @@ def select_stage1a_vector_initial_states(
         selection_rule=selection_rule,
     )
     receipt = selection.receipt()
-    if not receipt["distinct_source_sample_ids"] or not receipt["gripper_open_all"]:
+    if (
+        (diagnostic_source_row_indices is None and not receipt["distinct_source_sample_ids"])
+        or not receipt["gripper_open_all"]
+    ):
         raise Stage1AVectorInitialStateError("VECTOR_SOURCE_SELECTION_VALIDATION_FAILED")
     return selection
 

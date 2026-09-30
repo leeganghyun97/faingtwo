@@ -166,6 +166,10 @@ def _vector_source_freeze(
         ROOT / "source/geniesim/rl/sac/stage1a_vector_telemetry.py",
         ROOT / "source/geniesim/rl/sac/stage1a_isaac_vector_smoke.py",
         ROOT / "source/geniesim/rl/sac/stage1a_reset_open_restore.py",
+        ROOT / "source/geniesim/rl/sac/stage1a_termination_receipt.py",
+        ROOT / "source/geniesim/rl/sac/stage1a_forbidden_contact_diagnostic.py",
+        ROOT / "source/geniesim/rl/isaaclab/g2_collision_authority.py",
+        ROOT / "source/geniesim/rl/sac/stage1a_deferred_wandb.py",
         ROOT / "source/geniesim/rl/sac/stage1a_grasp_evaluation_contract.py",
         ROOT / "source/geniesim/rl/sac/stage1a_close_readiness_contract.py",
         ROOT / "source/geniesim/rl/sac/stage1a_boundary_paired_collection.py",
@@ -530,7 +534,23 @@ def main() -> int:
             "V6 boundary plan and remains excluded from student inputs"
         ),
     )
+    parser.add_argument(
+        "--forbidden-collision-diagnostic-source-rows",
+        help=(
+            "diagnostic-only exact row allocation; the only authorized value is "
+            "133,133,133,137,137,137,150,150,155,155"
+        ),
+    )
     args = parser.parse_args()
+    collision_diagnostic_rows = None
+    if args.forbidden_collision_diagnostic_source_rows is not None:
+        try:
+            collision_diagnostic_rows = tuple(
+                int(value)
+                for value in args.forbidden_collision_diagnostic_source_rows.split(",")
+            )
+        except ValueError as error:
+            raise SystemExit("FORBIDDEN_COLLISION_DIAGNOSTIC_ROWS_INVALID") from error
     if args.verify_source_freeze_only:
         diagnostic = _load(DIAGNOSTIC_SOURCE, "stage1a_source_freeze_only_diagnostic")
         receipt = _vector_source_freeze(diagnostic)
@@ -578,16 +598,17 @@ def main() -> int:
             "FAIR_6K_REQUIRES_NUM_ENVS_10_TARGET_6000_AND_ONLINE_WANDB"
         )
     if args.runtime_variant in reset_fixed_7p5k_variants and (
-        args.num_envs != 25
-        or not (
+        not (
             (
                 not args.preflight_only
+                and args.num_envs == 25
                 and args.accepted_transitions == 7500
                 and args.wandb
                 and args.wandb_mode == "online"
             )
             or (
                 args.preflight_only
+                and args.num_envs in (10, 25)
                 and args.accepted_transitions == 100
                 and not args.wandb
             )
@@ -597,13 +618,13 @@ def main() -> int:
             "RESET_FIXED_FAIR_7P5K_REQUIRES_NUM_ENVS_25_TARGET_7500_AND_ONLINE_WANDB"
         )
     if args.runtime_variant in reset_fixed_6k_variants and (
-        args.num_envs != 25
+        args.num_envs not in (10, 25)
         or args.accepted_transitions != 6000
         or not args.wandb
         or args.wandb_mode != "online"
     ):
         raise SystemExit(
-            "RESET_FIXED_FAIR_6K_REQUIRES_NUM_ENVS_25_TARGET_6000_AND_ONLINE_WANDB"
+            "RESET_FIXED_FAIR_6K_REQUIRES_NUM_ENVS_10_OR_25_TARGET_6000_AND_ONLINE_WANDB"
         )
     # Legacy advisory-specific receipt retained for artifact/test readers:
     # V31_LATERAL_OFF_FSM_ADVISORY_RESET_FIXED_7P5K_REQUIRES_NUM_ENVS_25_TARGET_7500_AND_ONLINE_WANDB
@@ -971,6 +992,7 @@ def main() -> int:
                 if advisory_variant
                 else None
             ),
+            forbidden_collision_diagnostic_source_rows=collision_diagnostic_rows,
         )
         _write_launch_marker(launch_marker, "VECTOR_RUNTIME_RETURNED", exit_code=result)
         return result

@@ -37,7 +37,7 @@ def test_current_v3_retry_supervisor_requires_pretraining_smoke_before_training_
     source = (
         ROOT / "scripts/diagnostics/run_g2_stage1a_current_retry_supervisor.py"
     ).read_text(encoding="utf-8")
-    assert 'receipt.get("physics_smoke", {}).get("PHYSICS_SMOKE") != "PASS"' in source
+    assert '(receipt.get("physics_smoke") or {}).get("PHYSICS_SMOKE") != "PASS"' in source
     assert '"failure_class", "PHYSICS_SMOKE_FAIL"' in source
     assert "V3_BASELINE" in source
     assert "HER_FORCE" in source
@@ -46,3 +46,15 @@ def test_current_v3_retry_supervisor_requires_pretraining_smoke_before_training_
     assert '"auto_15k_started": False' in source
     assert "known_shutdown_sigsegv_separate" in source
     assert "completed_report" in source
+
+
+def test_supervisor_validates_and_pins_policy_checkpoints_before_isaac() -> None:
+    source = (
+        ROOT / "scripts/diagnostics/run_g2_stage1a_current_retry_supervisor.py"
+    ).read_text(encoding="utf-8")
+    assert "REQUIRED_POLICY_CHECKPOINT_IDS" in source
+    assert "_resolve_required_policy_checkpoints" in source
+    assert "POLICY_CHECKPOINT_MISSING" in source
+    assert "POLICY_CHECKPOINT_HASH_MISMATCH" in source
+    assert "environment.update(args.policy_checkpoint_environment)" in source
+    assert '"policy_checkpoint_authority": args.policy_checkpoint_authority' in source

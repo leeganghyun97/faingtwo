@@ -51,7 +51,10 @@ def test_all_methods_have_distinct_reset_fixed_25env_6k_identities() -> None:
     for variant in VARIANTS_6K:
         assert variant in sources
     assert "RESET_FIXED_25ENV_6K_RUNTIME_VARIANTS" in sources
-    assert "RESET_FIXED_FAIR_6K_REQUIRES_NUM_ENVS_25_TARGET_6000_AND_ONLINE_WANDB" in sources
+    assert (
+        "RESET_FIXED_FAIR_6K_REQUIRES_NUM_ENVS_10_OR_25_TARGET_6000_AND_ONLINE_WANDB"
+        in sources
+    )
 
 
 def test_common_reset_contract_is_not_advisory_specific() -> None:
@@ -61,6 +64,24 @@ def test_common_reset_contract_is_not_advisory_specific() -> None:
     assert '"stage1a_reset_fixed_25env_7p5k"' in runtime
     assert '"accepted_transitions_per_env": (' in runtime
     assert "accepted_transition_target // num_envs" in runtime
+    assert "hold_episode_clocks_for_open_restore" in runtime
+    assert "episode_clock_hold_count" in runtime
+    assert '"right_censored_pending_count"' in runtime
+    assert "reset_failed_attempts" in runtime
+    assert "reset_pending_attempts" in runtime
+    assert "DeferredWandbRun" in runtime
+    assert "FIRST_ACCEPTED_TRANSITION_AFTER_MEASURED_OPEN_GATE" in runtime
+    runner = RUNNER.read_text(encoding="utf-8")
+    assert 'ROOT / "source/geniesim/rl/sac/stage1a_deferred_wandb.py"' in runner
+
+
+def test_comparison_fails_closed_before_starting_later_methods() -> None:
+    orchestrator = (
+        ROOT / "scripts/run_g2_stage1a_reset_fixed_7p5k_comparison.py"
+    ).read_text(encoding="utf-8")
+    assert 'if entry["training"] != "PASS":' in orchestrator
+    assert 'persist("METHOD_FAIL_CLOSED")' in orchestrator
+    assert 'static_results["fail_closed_method"] = method.label' in orchestrator
 
 
 def test_method_behavior_aliases_use_existing_canonical_predicates() -> None:

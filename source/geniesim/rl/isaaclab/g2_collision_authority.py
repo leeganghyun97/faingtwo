@@ -210,6 +210,137 @@ def _filtered_component_tensors(sensor: object) -> dict[str, torch.Tensor]:
     }
 
 
+def _contact_view(sensor: object) -> object:
+    view = getattr(sensor, "contact_view", None)
+    if view is None:
+        view = getattr(sensor, "contact_physx_view", None)
+    if view is None or not callable(getattr(view, "get_contact_data", None)):
+        raise RuntimeError("G2_FORBIDDEN_COLLISION_CONTACT_DATA_UNAVAILABLE")
+    return view
+
+
+def _contact_tensor(value: object) -> torch.Tensor:
+    """Convert Isaac/PhysX Torch or Warp contact storage without a copy."""
+
+    tensor = _torch_view(value)
+    if tensor is not None:
+        return tensor
+    try:
+        return torch.from_dlpack(value)
+    except (AttributeError, TypeError, RuntimeError) as exc:
+        raise RuntimeError(
+            "G2_FORBIDDEN_COLLISION_CONTACT_DATA_TENSOR_INVALID"
+        ) from exc
+
+
+def _filtered_contact_details(
+    *,
+    env: object,
+    sensor: object,
+    sensor_name: str,
+) -> list[dict[str, object]]:
+    """Copy exact point/normal/separation rows from a filtered PhysX view.
+
+    This runs only after the ordinary force predicate has already found a
+    failure.  It is a read-only diagnostic query and never enters the
+    collision decision.
+    """
+
+    physics_dt_s = float(getattr(env, "physics_dt", 0.002))
+    values = tuple(_contact_view(sensor).get_contact_data(dt=physics_dt_s))
+    if len(values) != 6:
+        raise RuntimeError("G2_FORBIDDEN_COLLISION_CONTACT_DATA_SHAPE_INVALID")
+    forces, points, normals, separations, counts, starts = values
+    tensors = tuple(
+        _contact_tensor(value)
+        for value in (forces, points, normals, separations, counts, starts)
+    )
+    force, point, normal, separation, count, start = tensors
+    assert force is not None and point is not None and normal is not None
+    assert separation is not None and count is not None and start is not None
+    force_cpu = force.detach().to("cpu").reshape(-1)
+    point_cpu = point.detach().to("cpu").reshape(-1, 3)
+    normal_cpu = normal.detach().to("cpu").reshape(-1, 3)
+    separation_cpu = separation.detach().to("cpu").reshape(-1)
+    count_cpu = count.detach().to("cpu").reshape(-1)
+    start_cpu = start.detach().to("cpu").reshape(-1)
+    expected_pairs = int(env.num_envs) * len(G2_RIGHT_PAD_FILTER_TARGETS)
+    if count_cpu.numel() != expected_pairs or start_cpu.numel() != expected_pairs:
+        raise RuntimeError("G2_FORBIDDEN_COLLISION_CONTACT_PAIR_LAYOUT_INVALID")
+
+    subject = {
+        "forbidden_right_inner_pad_contact": "gripper_r_inner_link4",
+        "forbidden_right_outer_pad_contact": "gripper_r_outer_link4",
+        "diagnostic_right_outer_link2_contact": "gripper_r_outer_link2",
+    }.get(sensor_name, sensor_name)
+    context = getattr(env, "_g2_stage1a_collision_diagnostic_context", {})
+    vector_step = context.get("vector_step")
+    timestamp_s = context.get("control_timestamp_s")
+    episode_ids = context.get("episode_ids", ())
+    source_ids = context.get("source_sample_ids", ())
+    control_steps = context.get("control_steps", ())
+    result: list[dict[str, object]] = []
+    for env_id in range(int(env.num_envs)):
+        pairs: dict[str, object] = {}
+        for target_index, target in enumerate(G2_RIGHT_PAD_FILTER_TARGETS):
+            pair_index = env_id * len(G2_RIGHT_PAD_FILTER_TARGETS) + target_index
+            pair_count = int(count_cpu[pair_index].item())
+            pair_start = int(start_cpu[pair_index].item())
+            if pair_count < 0 or pair_start < 0 or pair_start + pair_count > force_cpu.numel():
+                raise RuntimeError("G2_FORBIDDEN_COLLISION_CONTACT_SLICE_INVALID")
+            contact_rows: list[dict[str, object]] = []
+            for raw_index in range(pair_start, pair_start + pair_count):
+                normal_force_n = float(force_cpu[raw_index].item())
+                separation_m = float(separation_cpu[raw_index].item())
+                contact_rows.append(
+                    {
+                        "contact_point_world_m": [
+                            float(value) for value in point_cpu[raw_index].tolist()
+                        ],
+                        "contact_normal_world": [
+                            float(value) for value in normal_cpu[raw_index].tolist()
+                        ],
+                        "separation_m": separation_m,
+                        "penetration_depth_m": max(0.0, -separation_m),
+                        "normal_force_n": normal_force_n,
+                        "normal_impulse_ns": normal_force_n * physics_dt_s,
+                    }
+                )
+            pairs[target] = {
+                "collision_pair": (
+                    f"/World/envs/env_{env_id}/Robot/{subject} <-> "
+                    f"/World/envs/env_{env_id}/{target}"
+                ),
+                "robot_link": subject,
+                "other_body": target,
+                "contact_count": pair_count,
+                "contacts": contact_rows,
+            }
+        result.append(
+            {
+                "sensor_name": sensor_name,
+                "env_id": env_id,
+                "episode_id": (
+                    int(episode_ids[env_id]) if len(episode_ids) > env_id else None
+                ),
+                "source_sample_id": (
+                    str(source_ids[env_id]) if len(source_ids) > env_id else None
+                ),
+                "vector_step": int(vector_step) if vector_step is not None else None,
+                "control_step": (
+                    int(control_steps[env_id]) if len(control_steps) > env_id else None
+                ),
+                "control_timestamp_s": (
+                    float(timestamp_s) if timestamp_s is not None else None
+                ),
+                "subject_body": subject,
+                "filter_pairs": pairs,
+                "value_authority": "RIGID_CONTACT_VIEW_GET_CONTACT_DATA_READ_ONLY",
+            }
+        )
+    return result
+
+
 def _is_safety_body_name(name: str) -> bool:
     return name.startswith(("body_", "head_", "arm_", "gripper_l_", "gripper_r_"))
 
@@ -463,12 +594,19 @@ class G2ForbiddenCollisionEvaluator:
         self._last_body_peak_forces_by_sensor: dict[
             str, tuple[tuple[str, ...], torch.Tensor]
         ] = {}
+        self._last_body_force_vectors_by_sensor: dict[
+            str, tuple[tuple[str, ...], torch.Tensor]
+        ] = {}
         self._last_filtered_pad_components: dict[
             str, dict[str, torch.Tensor]
         ] = {}
         self._last_diagnostic_filtered_components: dict[
             str, dict[str, torch.Tensor]
         ] = {}
+        self._last_filtered_contact_details: dict[
+            str, list[dict[str, object]]
+        ] = {}
+        self._last_filtered_contact_detail_errors: dict[str, str] = {}
         schema_probe = dict(
             runtime_schema_probe
             if runtime_schema_probe is not None
@@ -630,6 +768,10 @@ class G2ForbiddenCollisionEvaluator:
                     body_names,
                     body_magnitudes.detach().clone(),
                 )
+                self._last_body_force_vectors_by_sensor[name] = (
+                    body_names,
+                    sanitized.detach().clone(),
+                )
             # Include previously observed general collision state in this
             # already-existing filtered-sensor host check.  On any failure it
             # captures both pad vectors and the outer-link2 vectors from the
@@ -652,6 +794,23 @@ class G2ForbiddenCollisionEvaluator:
                         key: value.detach().clone()
                         for key, value in components.items()
                     }
+                try:
+                    self._last_filtered_contact_details[name] = (
+                        _filtered_contact_details(
+                            env=self.env,
+                            sensor=sensor,
+                            sensor_name=name,
+                        )
+                    )
+                    self._last_filtered_contact_detail_errors.pop(name, None)
+                except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
+                    # Point-level evidence is diagnostic-only.  A backend
+                    # incompatibility must be durable evidence, never an
+                    # exception that replaces the already-computed safety
+                    # termination.
+                    self._last_filtered_contact_detail_errors[name] = (
+                        f"{type(exc).__name__}:{exc}"
+                    )
             # Non-finite contact telemetry is a safety failure, never a safe
             # zero; it terminates the affected environment through the same
             # fail-closed signal.
@@ -705,6 +864,46 @@ class G2ForbiddenCollisionEvaluator:
                 body_name: [
                     float(item)
                     for item in magnitudes[:, index].detach().cpu().tolist()
+                ]
+                for index, body_name in enumerate(body_names)
+            }
+        return result
+
+    def sensor_body_force_vectors_n(
+        self,
+    ) -> dict[str, dict[str, list[list[float]]]]:
+        """Return cached termination-frame net-force vectors per body.
+
+        The task manager may auto-reset a clone immediately after evaluating
+        ``forbidden_collision``.  Consequently this accessor intentionally
+        prefers the vectors cached inside :meth:`__call__` and is meant only
+        for durable, read-only failure receipts.
+        """
+
+        result: dict[str, dict[str, list[list[float]]]] = {}
+        for name in G2_GENERAL_FORBIDDEN_CONTACT_SENSORS:
+            cached = self._last_body_force_vectors_by_sensor.get(name)
+            if cached is None:
+                sensor = _scene_sensor(self.env, name)
+                force = _force_tensor(sensor, filtered=False)
+                if force.ndim != 3 or force.shape[-1] != 3:
+                    raise RuntimeError(
+                        "G2_FORBIDDEN_COLLISION_BODY_FORCE_SHAPE_INVALID"
+                    )
+                body_names = tuple(
+                    str(value) for value in getattr(sensor, "body_names", ())
+                )
+                if len(body_names) != force.shape[1]:
+                    body_names = tuple(
+                        f"body_index_{index}" for index in range(force.shape[1])
+                    )
+                vectors = force
+            else:
+                body_names, vectors = cached
+            result[name] = {
+                body_name: [
+                    [float(component) for component in vector]
+                    for vector in vectors[:, index].detach().cpu().tolist()
                 ]
                 for index, body_name in enumerate(body_names)
             }
@@ -796,6 +995,19 @@ class G2ForbiddenCollisionEvaluator:
             result[name] = serialized
         return result
 
+    def filtered_contact_details(self) -> dict[str, object]:
+        """Return exact cached point rows from termination-frame views."""
+
+        return {
+            "rows_by_sensor": {
+                name: [dict(row) for row in rows]
+                for name, rows in self._last_filtered_contact_details.items()
+            },
+            "capture_errors_by_sensor": dict(
+                self._last_filtered_contact_detail_errors
+            ),
+        }
+
 
 def install_g2_forbidden_collision_sensors(scene: object) -> None:
     """Install the exact sensor partition on an Isaac Lab scene config."""
@@ -803,6 +1015,13 @@ def install_g2_forbidden_collision_sensors(scene: object) -> None:
     from isaaclab.sensors import ContactSensorCfg
 
     common = {"update_period": 0.0, "history_length": 1}
+    filtered_common = {
+        **common,
+        # Diagnostic buffers only.  They do not alter contact generation,
+        # filtering, dynamics, or the force predicate.
+        "track_contact_points": True,
+        "max_contact_data_count_per_prim": 16,
+    }
     scene.forbidden_torso_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/body_link.*", **common
     )
@@ -833,12 +1052,12 @@ def install_g2_forbidden_collision_sensors(scene: object) -> None:
     scene.forbidden_right_inner_pad_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/gripper_r_inner_link4",
         filter_prim_paths_expr=pad_filters,
-        **common,
+        **filtered_common,
     )
     scene.forbidden_right_outer_pad_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/gripper_r_outer_link4",
         filter_prim_paths_expr=pad_filters,
-        **common,
+        **filtered_common,
     )
     # Legacy sensor name retained for artifact compatibility.  The official
     # OmniPicker describes rubber-coated connecting links as intentional
@@ -847,7 +1066,7 @@ def install_g2_forbidden_collision_sensors(scene: object) -> None:
     scene.diagnostic_right_outer_link2_contact = ContactSensorCfg(
         prim_path="{ENV_REGEX_NS}/Robot/gripper_r_outer_link2",
         filter_prim_paths_expr=pad_filters,
-        **common,
+        **filtered_common,
     )
 
 

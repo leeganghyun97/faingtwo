@@ -402,6 +402,7 @@ def _measure_primary_pad_cube_geometry(
     cube_center_world_m: Sequence[float],
     cube_quat_world_xyzw: Sequence[float],
     cube_half_extents_m: Sequence[float],
+    table_surface_height_m: float | None = None,
 ) -> dict[str, Any]:
     """Measure the source-bound meshes against one live cube OBB."""
 
@@ -442,7 +443,7 @@ def _measure_primary_pad_cube_geometry(
         inner_containment_margin, outer_containment_margin
     )
     cube_between_pads = inner_toward <= cube_projection <= outer_toward
-    return {
+    result = {
         "authority": authority,
         "inner_pad_cube_gap_mm": gaps[PRIMARY_PAD_BODIES[0]] * 1000.0,
         "outer_pad_cube_gap_mm": gaps[PRIMARY_PAD_BODIES[1]] * 1000.0,
@@ -467,6 +468,32 @@ def _measure_primary_pad_cube_geometry(
         ),
         "student_observation_field_count": 0,
     }
+    if table_surface_height_m is not None:
+        table_height = float(table_surface_height_m)
+        if not math.isfinite(table_height):
+            raise PrivilegedGeometryOracleError("TABLE_SURFACE_HEIGHT_INVALID")
+        table_clearance = {
+            body: float(mesh.reshape(-1, 3)[:, 2].min() - table_height)
+            for body, mesh in meshes_world_m.items()
+        }
+        result.update(
+            {
+                "inner_link4_table_clearance_mm": (
+                    table_clearance[PRIMARY_PAD_BODIES[0]] * 1000.0
+                ),
+                "outer_link4_table_clearance_mm": (
+                    table_clearance[PRIMARY_PAD_BODIES[1]] * 1000.0
+                ),
+                "minimum_primary_pad_table_clearance_mm": (
+                    min(table_clearance.values()) * 1000.0
+                ),
+                "table_surface_height_m": table_height,
+                "table_clearance_authority": (
+                    "LIVE_USD_PHYSICS_COLLISION_ENABLED_MESH_MINIMUM_WORLD_Z"
+                ),
+            }
+        )
+    return result
 
 
 class RuntimePrimaryPadCubeOracleCache:
@@ -510,6 +537,10 @@ class RuntimePrimaryPadCubeOracleCache:
             local_meshes[body] = (world_mesh - position) @ rotation
             authority[body] = receipt
         self._local_meshes = local_meshes
+        self._local_vertices = {
+            body: np.unique(mesh.reshape(-1, 3), axis=0)
+            for body, mesh in local_meshes.items()
+        }
         self._authority = authority
         self.environment_root_path = environment_root_path
 
@@ -520,6 +551,7 @@ class RuntimePrimaryPadCubeOracleCache:
         cube_quat_world_xyzw: Sequence[float],
         cube_half_extents_m: Sequence[float],
         body_pose_world_m_xyzw_by_name: dict[str, Sequence[float]],
+        table_surface_height_m: float | None = None,
     ) -> dict[str, Any]:
         meshes: dict[str, np.ndarray] = {}
         for body in PRIMARY_PAD_BODIES:
@@ -537,6 +569,7 @@ class RuntimePrimaryPadCubeOracleCache:
             cube_center_world_m=cube_center_world_m,
             cube_quat_world_xyzw=cube_quat_world_xyzw,
             cube_half_extents_m=cube_half_extents_m,
+            table_surface_height_m=table_surface_height_m,
         )
         result["geometry_cache"] = {
             "enabled": True,
@@ -544,6 +577,37 @@ class RuntimePrimaryPadCubeOracleCache:
             "mesh_authority": "LIVE_USD_PHYSICS_COLLISION_ENABLED_MESH",
         }
         return result
+
+    def measure_table_clearance(
+        self,
+        *,
+        table_surface_height_m: float,
+        body_pose_world_m_xyzw_by_name: dict[str, Sequence[float]],
+    ) -> dict[str, Any]:
+        """Measure exact link4 collision-mesh clearance without cube work."""
+
+        table_height = float(table_surface_height_m)
+        if not math.isfinite(table_height):
+            raise PrivilegedGeometryOracleError("TABLE_SURFACE_HEIGHT_INVALID")
+        clearances: dict[str, float] = {}
+        for body in PRIMARY_PAD_BODIES:
+            pose = body_pose_world_m_xyzw_by_name.get(body)
+            if pose is None or len(pose) != 7:
+                raise PrivilegedGeometryOracleError(
+                    f"PAD_LIVE_BODY_POSE_MISSING:{body}"
+                )
+            position = np.asarray(pose[:3], dtype=np.float64)
+            rotation = _rotation_from_xyzw(pose[3:], token=f"PAD_{body}")
+            world_vertices = self._local_vertices[body] @ rotation.T + position
+            clearances[body] = float(world_vertices[:, 2].min() - table_height)
+        return {
+            "inner_link4_table_clearance_m": clearances[PRIMARY_PAD_BODIES[0]],
+            "outer_link4_table_clearance_m": clearances[PRIMARY_PAD_BODIES[1]],
+            "minimum_primary_pad_table_clearance_m": min(clearances.values()),
+            "table_surface_height_m": table_height,
+            "authority": "LIVE_USD_PHYSICS_COLLISION_ENABLED_MESH_MINIMUM_WORLD_Z",
+            "student_observation_field_count": 0,
+        }
 
 
 def runtime_primary_pad_cube_oracle(
@@ -553,6 +617,7 @@ def runtime_primary_pad_cube_oracle(
     cube_half_extents_m: Sequence[float],
     body_pose_world_m_xyzw_by_name: dict[str, Sequence[float]],
     environment_root_path: str | None = None,
+    table_surface_height_m: float | None = None,
 ) -> dict[str, Any]:
     """Return exact mesh/OBB separation and aperture from the live USD stage."""
 
@@ -586,6 +651,7 @@ def runtime_primary_pad_cube_oracle(
         cube_center_world_m=cube_center_world_m,
         cube_quat_world_xyzw=cube_quat_world_xyzw,
         cube_half_extents_m=cube_half_extents_m,
+        table_surface_height_m=table_surface_height_m,
     )
 
 

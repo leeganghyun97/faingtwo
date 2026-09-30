@@ -83,7 +83,15 @@ from geniesim.rl.sac.stage1a_grasp_evaluation_contract import (
 from geniesim.rl.sac.stage1a_reset_open_restore import (
     RESET_OPEN_RESTORE_SCHEMA,
     ResetOpenRestoreProgress,
+    hold_episode_clocks_for_open_restore,
 )
+from geniesim.rl.sac.stage1a_open_table_clearance import (
+    OPEN_TABLE_MINIMUM_CLEARANCE_M,
+    OpenTableClearanceError,
+    project_open_precontact_action_for_table_clearance,
+    reset_open_clearance_decision,
+)
+from geniesim.rl.sac.stage1a_deferred_wandb import DeferredWandbRun
 from geniesim.rl.sac.stage1a_isaac_short_smoke import (
     CONTROL_HZ,
     MAX_FINAL_ACTION_M,
@@ -134,6 +142,13 @@ from geniesim.rl.sac.stage1a_current_gru_privileged import (
 from geniesim.rl.sac.stage1a_signed_readiness_margin import (
     build_signed_readiness_margin,
     receipt_dict as signed_margin_receipt_dict,
+)
+from geniesim.rl.sac.stage1a_termination_receipt import (
+    TERMINATION_RECEIPT_SCHEMA,
+    capture_task_termination_receipt,
+)
+from geniesim.rl.sac.stage1a_forbidden_contact_diagnostic import (
+    Stage1AForbiddenContactEventDiagnostic,
 )
 from geniesim.rl.sac.stage1a_v6_wrist_diagnostic import (
     V6_WRIST_DIAGNOSTIC_SCHEMA,
@@ -482,6 +497,14 @@ def _is_reset_fixed_25env_variant(runtime_variant: str) -> bool:
     ) or _is_reset_fixed_25env_6k_variant(runtime_variant)
 
 
+def _uses_reset_open_table_clearance(runtime_variant: str) -> bool:
+    """Use the same source-clearance safety contract for every reset-fixed run."""
+
+    return _is_reset_fixed_25env_variant(
+        runtime_variant
+    ) or _is_reset_fixed_fair_6k_variant(runtime_variant)
+
+
 def _reset_fixed_7p5k_method(runtime_variant: str) -> str | None:
     return {
         V3_CURRENT_25ENV_RESET_FIXED_7P5K_RUNTIME_VARIANT: "V3 CURRENT",
@@ -801,6 +824,63 @@ def _post_close_micro_execution_proposal(
     }
 
 
+def _open_table_projected_execution_proposal(
+    proposal: Any,
+    *,
+    alpha: Any,
+    projected_action_4d_metric_root_m: Sequence[float],
+) -> Any:
+    """Re-compose replay evidence for the exact OPEN action sent to Isaac.
+
+    The clearance admission is a controller-side safety projection.  Storing
+    the actor's unprojected action in replay would make the transition receipt
+    disagree with the physical action.  The intervention is therefore recorded
+    as the canonical nominal safety command with a zero SAC residual.  This is
+    the same conservative convention used by the post-CLOSE motion freeze: an
+    action shield may remove actor authority but may never silently expand it.
+    """
+
+    projected = np.asarray(projected_action_4d_metric_root_m, dtype=np.float64)
+    if projected.shape != (4,) or not np.isfinite(projected).all():
+        raise Stage1AVectorIsaacSmokeError(
+            "VECTOR_OPEN_TABLE_PROJECTED_ACTION_INVALID"
+        )
+    if (
+        abs(float(projected[3]) - float(proposal.bc_action_4d_metric_root_m[3]))
+        > 1.0e-12
+    ):
+        raise Stage1AVectorIsaacSmokeError(
+            "VECTOR_OPEN_TABLE_GRIPPER_AUTHORITY_CHANGED"
+        )
+    if float(np.linalg.norm(projected[:3])) > MAX_FINAL_ACTION_M + 1.0e-12:
+        raise Stage1AVectorIsaacSmokeError(
+            "VECTOR_OPEN_TABLE_PROJECTED_ACTION_BOUND_VIOLATION"
+        )
+    raw = np.zeros(3, dtype=np.float64)
+    composition = compose_bc_and_residual_action(
+        bc_action_metric_root_m=projected,
+        raw_sac_residual_metric_root_m=raw,
+        alpha=alpha,
+    )
+    if not np.allclose(
+        np.asarray(composition.final_action_4d_metric_root_m, dtype=np.float64),
+        projected,
+        rtol=0.0,
+        atol=1.0e-12,
+    ):
+        raise Stage1AVectorIsaacSmokeError(
+            "VECTOR_OPEN_TABLE_REPLAY_EXECUTION_MISMATCH"
+        )
+    return replace(
+        proposal,
+        normalized_sac_action=np.zeros(3, dtype=np.float32),
+        raw_residual_metric_root_m=tuple(float(value) for value in raw),
+        bc_action_4d_metric_root_m=tuple(float(value) for value in projected),
+        composition=composition,
+        residual_active=False,
+    )
+
+
 def _v31_observed_post_close_phase(
     *, gate: Mapping[str, Any], reward_step: Any, env_id: int
 ) -> str:
@@ -1005,6 +1085,9 @@ def _runtime_metric_row(
     lateral_value = gate.get("lateral_alignment_error_mm")
     lateral_mm = float(lateral_value) if lateral_value is not None else float("nan")
     close_diagnostic = close_diagnostic or {}
+    clearance_projection = execution.get("open_table_clearance_projection", {})
+    if not isinstance(clearance_projection, Mapping):
+        clearance_projection = {}
     return {
         "accepted_transitions": accepted_transitions,
         "vector_step": vector_step,
@@ -1176,6 +1259,24 @@ def _runtime_metric_row(
         "forward_normal_push_allowed": int(
             bool(execution.get("forward_normal_push_allowed", False))
         ),
+        "open_table_clearance_mm": 1000.0
+        * _diagnostic_float(
+            clearance_projection, "current_minimum_clearance_m"
+        ),
+        "open_table_requested_clearance_mm": 1000.0
+        * _diagnostic_float(
+            clearance_projection, "requested_minimum_clearance_m"
+        ),
+        "open_table_applied_clearance_mm": 1000.0
+        * _diagnostic_float(
+            clearance_projection, "applied_minimum_clearance_m"
+        ),
+        "open_table_clearance_intervention": int(
+            bool(clearance_projection.get("intervention", False))
+        ),
+        "open_table_clearance_mode": str(
+            clearance_projection.get("mode", "NOT_APPLIED")
+        ),
         "micro_slip_before_m_s": float(execution.get("micro_slip_before_m_s", float("nan"))),
         "micro_slip_after_m_s": float(execution.get("micro_slip_after_m_s", float("nan"))),
         "micro_relative_velocity_before_m_s": float(execution.get("micro_relative_velocity_before_m_s", float("nan"))),
@@ -1256,23 +1357,14 @@ def _task_bool(task_mdp: Any, env: Any, name: str) -> np.ndarray:
     return result
 
 
-def _primary_pad_close_geometry(
-    *, env: Any, task_mdp: Any, state: Mapping[str, torch.Tensor], env_id: int
-) -> dict[str, Any]:
-    """Read Tier-A pad/cube geometry for the 25-Hz teacher receipt.
-
-    The exact collision-enabled pad meshes remain the authority; no
-    approximate pad center or student observation is substituted for the
-    geometry oracle.  A caller may cache this live receipt for the immediately
-    following 50-Hz control step, but it must never enter an actor input.
-    """
+def _primary_pad_body_poses_world_m_xyzw(
+    *, env: Any
+) -> list[dict[str, tuple[float, ...]]]:
+    """Snapshot all live primary-pad poses with only one host transfer."""
 
     from geniesim.rl.isaaclab.g2_quaternion import (
         isaaclab_native_quaternion_order,
         quaternion_native_to_xyzw,
-    )
-    from geniesim.rl.sac.privileged_geometry_oracle import (
-        runtime_primary_pad_cube_oracle,
     )
 
     robot = env.scene["robot"]
@@ -1288,21 +1380,51 @@ def _primary_pad_close_geometry(
         torch.as_tensor(robot.data.body_quat_w, device=env.device),
         isaaclab_native_quaternion_order(),
     )
-    pose_by_name = {
-        name: tuple(
-            float(value)
-            for value in torch.cat(
-                (
-                    body_pos[env_id, body_names.index(name)],
-                    body_quat_xyzw[env_id, body_names.index(name)],
-                )
-            )
-            .detach()
-            .cpu()
-            .tolist()
-        )
-        for name in required
-    }
+    indices = torch.as_tensor(
+        [body_names.index(name) for name in required],
+        dtype=torch.long,
+        device=env.device,
+    )
+    poses = torch.cat(
+        (
+            body_pos.index_select(1, indices),
+            body_quat_xyzw.index_select(1, indices),
+        ),
+        dim=-1,
+    ).detach().cpu().numpy()
+    return [
+        {
+            name: tuple(float(value) for value in poses[env_id, body_index])
+            for body_index, name in enumerate(required)
+        }
+        for env_id in range(int(env.num_envs))
+    ]
+
+
+def _primary_pad_body_pose_world_m_xyzw(
+    *, env: Any, env_id: int
+) -> dict[str, tuple[float, ...]]:
+    """Return one clone from the vectorized primary-pad pose snapshot."""
+
+    return _primary_pad_body_poses_world_m_xyzw(env=env)[env_id]
+
+
+def _primary_pad_close_geometry(
+    *, env: Any, task_mdp: Any, state: Mapping[str, torch.Tensor], env_id: int
+) -> dict[str, Any]:
+    """Read Tier-A pad/cube geometry for the 25-Hz teacher receipt.
+
+    The exact collision-enabled pad meshes remain the authority; no
+    approximate pad center or student observation is substituted for the
+    geometry oracle.  A caller may cache this live receipt for the immediately
+    following 50-Hz control step, but it must never enter an actor input.
+    """
+
+    from geniesim.rl.sac.privileged_geometry_oracle import (
+        runtime_primary_pad_cube_oracle,
+    )
+
+    pose_by_name = _primary_pad_body_pose_world_m_xyzw(env=env, env_id=env_id)
     return runtime_primary_pad_cube_oracle(
         cube_center_world_m=state["cube_position_world_m"][env_id]
         .detach()
@@ -1318,6 +1440,7 @@ def _primary_pad_close_geometry(
         # vector namespace.  Supplying it prevents the scalar oracle from
         # conflating identically named pads in the other nine environments.
         environment_root_path=f"/World/envs/env_{env_id}",
+        table_surface_height_m=task_mdp.TASK.table_surface_height_m,
     )
 
 
@@ -1525,6 +1648,7 @@ def run_stage1a_isaac_vector_smoke(
     close_readiness_initialization: Mapping[str, Any] | None = None,
     frozen_student_advisory_checkpoint: Path | None = None,
     frozen_student_advisory_checkpoint_sha256: str | None = None,
+    forbidden_collision_diagnostic_source_rows: tuple[int, ...] | None = None,
 ) -> int:
     """Run a 1-env parity/10-env smoke or a fresh 10-env HER_FORCE run.
 
@@ -1539,6 +1663,16 @@ def run_stage1a_isaac_vector_smoke(
     if accepted_transition_target not in (100, 3000, 6000, 7500, 15000, 30000):
         raise Stage1AVectorIsaacSmokeError(
             "VECTOR_TARGET_MUST_BE_100_3000_6000_7500_15000_OR_30000"
+        )
+    if forbidden_collision_diagnostic_source_rows is not None and (
+        num_envs != 10
+        or runtime_variant != V31_25ENV_RESET_FIXED_6K_RUNTIME_VARIANT
+        or accepted_transition_target != 6000
+        or tuple(forbidden_collision_diagnostic_source_rows)
+        != (133, 133, 133, 137, 137, 137, 150, 150, 155, 155)
+    ):
+        raise Stage1AVectorIsaacSmokeError(
+            "FORBIDDEN_COLLISION_DIAGNOSTIC_ALLOCATION_NOT_AUTHORIZED"
         )
     if runtime_variant not in (
         V3_RUNTIME_VARIANT,
@@ -1599,27 +1733,32 @@ def run_stage1a_isaac_vector_smoke(
             "FAIR_6K_REQUIRES_NUM_ENVS_10_TARGET_6000_AND_ONLINE_WANDB"
         )
     if _is_reset_fixed_25env_7p5k_variant(runtime_variant) and (
-        num_envs != 25
-        or not (
+        not (
             (
+                num_envs == 25
+                and
                 accepted_transition_target == 7500
                 and wandb_enabled
                 and wandb_mode == "online"
             )
-            or (accepted_transition_target == 100 and not wandb_enabled)
+            or (
+                num_envs in (10, 25)
+                and accepted_transition_target == 100
+                and not wandb_enabled
+            )
         )
     ):
         raise Stage1AVectorIsaacSmokeError(
             "RESET_FIXED_FAIR_7P5K_REQUIRES_NUM_ENVS_25_TARGET_7500_AND_ONLINE_WANDB"
         )
     if _is_reset_fixed_25env_6k_variant(runtime_variant) and (
-        num_envs != 25
+        num_envs not in (10, 25)
         or accepted_transition_target != 6000
         or not wandb_enabled
         or wandb_mode != "online"
     ):
         raise Stage1AVectorIsaacSmokeError(
-            "RESET_FIXED_FAIR_6K_REQUIRES_NUM_ENVS_25_TARGET_6000_AND_ONLINE_WANDB"
+            "RESET_FIXED_FAIR_6K_REQUIRES_NUM_ENVS_10_OR_25_TARGET_6000_AND_ONLINE_WANDB"
         )
     # Legacy advisory-specific receipt retained for artifact/test readers:
     # V31_LATERAL_OFF_FSM_ADVISORY_RESET_FIXED_7P5K_REQUIRES_NUM_ENVS_25_TARGET_7500_AND_ONLINE_WANDB
@@ -1810,6 +1949,7 @@ def run_stage1a_isaac_vector_smoke(
             if _is_reset_fixed_25env_variant(runtime_variant)
             else None
         ),
+        diagnostic_source_row_indices=forbidden_collision_diagnostic_source_rows,
     )
     # Normal runtime/evaluation retains the immutable initial selection for
     # every reset.  Collection-only runs rotate an environment through new
@@ -1846,10 +1986,14 @@ def run_stage1a_isaac_vector_smoke(
         boundary_paired_plan is not None
         and boundary_paired_plan.get("paired_clone_allocation") is True
     )
+    collision_diagnostic_allocation = (
+        forbidden_collision_diagnostic_source_rows is not None
+    )
     if (
         not selection_receipt["gripper_open_all"]
         or (
             not paired_clone_allocation
+            and not collision_diagnostic_allocation
             and not selection_receipt["distinct_source_sample_ids"]
         )
     ):
@@ -1868,6 +2012,7 @@ def run_stage1a_isaac_vector_smoke(
         env,
         samples=selection.samples,
         allow_explicit_paired_clone_duplicates=paired_clone_allocation,
+        allow_explicit_diagnostic_duplicates=collision_diagnostic_allocation,
     )
     mark("POST_DIRECT_INIT", selected_sample_ids=[sample.sample_id for sample in selection.samples])
     if len(direct_receipts) != num_envs:
@@ -2004,6 +2149,14 @@ def run_stage1a_isaac_vector_smoke(
     packet_port = PerEnvPacketPort(batch_size=num_envs, device=env.device, binding_id="stage1a-vector")
     telemetry = VectorPassiveContactPhysicsTelemetry(env=env, task_mdp=task_mdp)
     telemetry.install()
+    forbidden_contact_diagnostic = None
+    if forbidden_collision_diagnostic_source_rows is not None:
+        forbidden_contact_diagnostic = Stage1AForbiddenContactEventDiagnostic(
+            num_envs=num_envs
+        )
+        env._g2_stage1a_forbidden_contact_event_diagnostic = (
+            forbidden_contact_diagnostic
+        )
     # A direct-state restore deliberately preserves the *measured* passive
     # four-bar.  Resolve the named measured coordinates once, but never write
     # any follower/mimic target.  The ordinary canonical OPEN action remains
@@ -2026,6 +2179,88 @@ def run_stage1a_isaac_vector_smoke(
         robot_joint_names.index(name)
         for name in G2_RIGHT_HAND_PASSIVE_OR_MIMIC_JOINT_NAMES
     )
+    reset_open_table_clearance_enabled = _uses_reset_open_table_clearance(
+        runtime_variant
+    )
+    table_clearance_oracles: list[Any] = []
+    latest_table_clearance_body_poses: list[
+        dict[str, tuple[float, ...]]
+    ] | None = None
+    reset_source_ee_z_m = [
+        float(sample.ee_pose_robot_root_m_xyzw[2])
+        for sample in active_initial_samples
+    ]
+    reset_clearance_last_receipts: list[dict[str, Any] | None] = [
+        None for _ in range(num_envs)
+    ]
+    if reset_open_table_clearance_enabled:
+        from geniesim.rl.sac.privileged_geometry_oracle import (
+            RuntimePrimaryPadCubeOracleCache,
+        )
+
+        initial_pad_poses = _primary_pad_body_poses_world_m_xyzw(env=env)
+        table_clearance_oracles = [
+            RuntimePrimaryPadCubeOracleCache(
+                initial_body_pose_world_m_xyzw_by_name=initial_pad_poses[env_id],
+                environment_root_path=f"/World/envs/env_{env_id}",
+            )
+            for env_id in range(num_envs)
+        ]
+
+    def measure_all_open_table_clearances() -> list[dict[str, Any] | None]:
+        nonlocal latest_table_clearance_body_poses
+        if not reset_open_table_clearance_enabled:
+            return [None for _ in range(num_envs)]
+        poses = _primary_pad_body_poses_world_m_xyzw(env=env)
+        latest_table_clearance_body_poses = poses
+        receipts = [
+            table_clearance_oracles[env_id].measure_table_clearance(
+                table_surface_height_m=task_mdp.TASK.table_surface_height_m,
+                body_pose_world_m_xyzw_by_name=poses[env_id],
+            )
+            for env_id in range(num_envs)
+        ]
+        if any(
+            int(receipt.get("student_observation_field_count", -1)) != 0
+            for receipt in receipts
+        ):
+            raise Stage1AVectorIsaacSmokeError(
+                "VECTOR_OPEN_TABLE_CLEARANCE_STUDENT_LEAKAGE"
+            )
+        return receipts
+
+    initial_clearance_state = (
+        vector_ee_and_cube_state(env=env, p0a=p0a)
+        if reset_open_table_clearance_enabled
+        else None
+    )
+    initial_clearance_commands_z_m = [0.0 for _ in range(num_envs)]
+    if initial_clearance_state is not None:
+        initial_table_clearances = measure_all_open_table_clearances()
+        for env_id in range(num_envs):
+            clearance = initial_table_clearances[env_id]
+            assert clearance is not None
+            decision = reset_open_clearance_decision(
+                source_ee_z_m=reset_source_ee_z_m[env_id],
+                current_ee_z_m=float(
+                    initial_clearance_state["ee_position_root_m"][env_id, 2]
+                    .detach()
+                    .cpu()
+                    .item()
+                ),
+                outer_link4_table_clearance_m=float(
+                    clearance["outer_link4_table_clearance_m"]
+                ),
+                inner_link4_table_clearance_m=float(
+                    clearance["inner_link4_table_clearance_m"]
+                ),
+            )
+            if decision.recovery_exhausted:
+                raise Stage1AVectorIsaacSmokeError(
+                    "VECTOR_INITIAL_OPEN_TABLE_CLEARANCE_UNRECOVERABLE"
+                )
+            reset_clearance_last_receipts[env_id] = decision.receipt()
+            initial_clearance_commands_z_m[env_id] = decision.command_z_m
     # A direct-state reset is a teleport, not a camera acquisition.  This
     # first packet only advances the sensor/physics epoch.  Policy/replay stay
     # blocked below until the same canonical OPEN action has demonstrated the
@@ -2034,7 +2269,12 @@ def run_stage1a_isaac_vector_smoke(
         [
             PerEnvCanonicalAction(
                 env_id=env_id,
-                final_action_4d_metric_root_m=(0.0, 0.0, 0.0, 0.0),
+                final_action_4d_metric_root_m=(
+                    0.0,
+                    0.0,
+                    initial_clearance_commands_z_m[env_id],
+                    0.0,
+                ),
                 gripper_intent=AbstractGripperIntent.OPEN,
             )
             for env_id in range(num_envs)
@@ -2053,6 +2293,10 @@ def run_stage1a_isaac_vector_smoke(
     previous_action = np.zeros((num_envs, 4), dtype=np.float32)
     previous_residual = np.zeros((num_envs, 3), dtype=np.float64)
     pending_reset = np.ones(num_envs, dtype=bool)
+    # The initial restore is a vector-wide preflight barrier for reset-fixed
+    # comparisons.  Otherwise the fastest clones can fill a short smoke
+    # budget while slower four-bar clones are still settling OPEN.
+    initial_reset_barrier_active = _is_reset_fixed_25env_variant(runtime_variant)
     episode_ids = [0 for _ in range(num_envs)]
     reset_open_restore_progress: list[ResetOpenRestoreProgress] = [
         ResetOpenRestoreProgress(
@@ -2072,6 +2316,11 @@ def run_stage1a_isaac_vector_smoke(
         None for _ in range(num_envs)
     ]
     reset_open_restore_receipts: list[dict[str, Any]] = []
+    termination_receipts: list[dict[str, Any]] = []
+    reset_episode_clock_hold_counts = np.zeros(num_envs, dtype=np.int64)
+    reset_episode_clock_latest_receipts: list[dict[str, Any] | None] = [
+        None for _ in range(num_envs)
+    ]
     reset_probe_completed = False
     # A V3 signed-margin collection starts matched clone pairs in the same
     # immutable source state.  It still has to demonstrate that one clone can
@@ -2105,7 +2354,7 @@ def run_stage1a_isaac_vector_smoke(
     run = None
     if wandb_enabled:
         import wandb
-        run = wandb.init(
+        initialize_wandb = lambda: wandb.init(
             project=wandb_project, entity=wandb_entity, name=wandb_run_name,
             group=wandb_group, mode=wandb_mode,
             config={
@@ -2166,6 +2415,11 @@ def run_stage1a_isaac_vector_smoke(
                     25 if _uses_privileged_geometry_receipt(runtime_variant) else None
                 ),
                 "student_privileged_input_count": 0,
+                "wandb_initialization_authority": (
+                    "FIRST_ACCEPTED_TRANSITION_AFTER_MEASURED_OPEN_GATE"
+                    if _is_reset_fixed_25env_variant(runtime_variant)
+                    else "IMMEDIATE_LEGACY_RUNTIME_INITIALIZATION"
+                ),
                 "close_distillation_enabled": _uses_privileged_geometry_distillation(
                     runtime_variant
                 ),
@@ -2235,6 +2489,11 @@ def run_stage1a_isaac_vector_smoke(
                 "v32_bilateral_micro_cap_mm": 0.075
                 if _is_v32_variant(runtime_variant) else None,
             },
+        )
+        run = (
+            DeferredWandbRun(initialize_wandb)
+            if _is_reset_fixed_25env_variant(runtime_variant)
+            else initialize_wandb()
         )
 
     def propose(env_id: int, inputs: Any, distance_m: float) -> tuple[Any | None, Any | None, str, bool]:
@@ -2761,6 +3020,11 @@ def run_stage1a_isaac_vector_smoke(
                     "x", encoding="utf-8"
                 )
             )
+            termination_receipt_stream = streams.enter_context(
+                (output_dir / "TASK_TERMINATION_RECEIPTS.jsonl").open(
+                    "x", encoding="utf-8"
+                )
+            )
             close_readiness_stream = (
                 streams.enter_context(close_readiness_rows_path.open("x", encoding="utf-8"))
                 if _uses_privileged_geometry_distillation(runtime_variant)
@@ -2807,6 +3071,11 @@ def run_stage1a_isaac_vector_smoke(
                 "post_close_micro_correction_norm_mm",
                 "post_close_micro_correction_cap_hit",
                 "approach_axis_component_removed_mm", "forward_normal_push_allowed",
+                "open_table_clearance_mm",
+                "open_table_requested_clearance_mm",
+                "open_table_applied_clearance_mm",
+                "open_table_clearance_intervention",
+                "open_table_clearance_mode",
                 "micro_slip_before_m_s", "micro_slip_after_m_s",
                 "micro_relative_velocity_before_m_s", "micro_relative_velocity_after_m_s",
                 "micro_cube_omega_before_rad_s", "micro_cube_omega_after_rad_s",
@@ -3702,6 +3971,7 @@ def run_stage1a_isaac_vector_smoke(
                 mark("VECTOR_CONTROL_LOOP", vector_step=vector_step)
                 state = vector_ee_and_cube_state(env=env, p0a=p0a)
                 forbidden_before = _task_bool(task_mdp, env, "forbidden")
+                table_clearance_before = measure_all_open_table_clearances()
                 rows: list[PerEnvCanonicalAction] = []
                 close_onset: list[bool] = []
                 executed_proposals: list[Any | None] = [None for _ in range(num_envs)]
@@ -3730,7 +4000,37 @@ def run_stage1a_isaac_vector_smoke(
                 v6_pre_action_frames: dict[int, Any] = {}
                 for env_id in range(num_envs):
                     if pending_reset[env_id]:
-                        final = (0.0, 0.0, 0.0, 0.0); intent = AbstractGripperIntent.OPEN; close_onset.append(False)
+                        lift_z_m = 0.0
+                        clearance = table_clearance_before[env_id]
+                        if reset_open_table_clearance_enabled:
+                            if clearance is None:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    "VECTOR_RESET_OPEN_TABLE_CLEARANCE_MISSING"
+                                )
+                            decision = reset_open_clearance_decision(
+                                source_ee_z_m=reset_source_ee_z_m[env_id],
+                                current_ee_z_m=float(
+                                    state["ee_position_root_m"][env_id, 2]
+                                    .detach()
+                                    .cpu()
+                                    .item()
+                                ),
+                                outer_link4_table_clearance_m=float(
+                                    clearance["outer_link4_table_clearance_m"]
+                                ),
+                                inner_link4_table_clearance_m=float(
+                                    clearance["inner_link4_table_clearance_m"]
+                                ),
+                            )
+                            reset_clearance_last_receipts[env_id] = decision.receipt()
+                            if decision.recovery_exhausted:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    "VECTOR_RESET_OPEN_TABLE_CLEARANCE_UNRECOVERABLE"
+                                )
+                            lift_z_m = decision.command_z_m
+                        final = (0.0, 0.0, lift_z_m, 0.0)
+                        intent = AbstractGripperIntent.OPEN
+                        close_onset.append(False)
                     else:
                         current_ee_root_m = (
                             state["ee_position_root_m"][env_id]
@@ -4367,6 +4667,40 @@ def run_stage1a_isaac_vector_smoke(
                         executed_proposals[env_id] = applied
                         final = tuple(float(v) for v in applied.composition.final_action_4d_metric_root_m)
                         intent = AbstractGripperIntent.CLOSE if gate["close_latched"] else AbstractGripperIntent.OPEN
+                        if (
+                            reset_open_table_clearance_enabled
+                            and intent is AbstractGripperIntent.OPEN
+                        ):
+                            clearance = table_clearance_before[env_id]
+                            if clearance is None:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    "VECTOR_ACTIVE_OPEN_TABLE_CLEARANCE_MISSING"
+                                )
+                            try:
+                                final, table_projection_receipt = (
+                                    project_open_precontact_action_for_table_clearance(
+                                        final,
+                                        current_minimum_clearance_m=float(
+                                            clearance[
+                                                "minimum_primary_pad_table_clearance_m"
+                                            ]
+                                        ),
+                                    )
+                                )
+                            except OpenTableClearanceError as exc:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    f"VECTOR_ACTIVE_OPEN_TABLE_CLEARANCE_INVALID:{exc}"
+                                ) from exc
+                            execution_receipts[env_id][
+                                "open_table_clearance_projection"
+                            ] = table_projection_receipt
+                            if bool(table_projection_receipt["intervention"]):
+                                applied = _open_table_projected_execution_proposal(
+                                    applied,
+                                    alpha=coordinator.alpha,
+                                    projected_action_4d_metric_root_m=final,
+                                )
+                                executed_proposals[env_id] = applied
                         if float(np.linalg.norm(final[:3])) > MAX_FINAL_ACTION_M + 1e-12:
                             raise Stage1AVectorIsaacSmokeError("VECTOR_FINAL_ACTION_BOUND_VIOLATION")
                     rows.append(PerEnvCanonicalAction(env_id=env_id, final_action_4d_metric_root_m=final, gripper_intent=intent))
@@ -4426,6 +4760,71 @@ def run_stage1a_isaac_vector_smoke(
                     ),
                     close_onset_by_env=tuple(close_onset),
                 )
+                pending_clock_env_ids = tuple(
+                    env_id for env_id in range(num_envs) if pending_reset[env_id]
+                )
+                if pending_clock_env_ids:
+                    # OPEN restoration is reset-only physics, not policy
+                    # episode exposure.  Hold only pending clones at episode
+                    # time zero so the task timeout cannot auto-reset their
+                    # four-bar before measured OPEN parity.  Active clones
+                    # retain their ordinary episode clocks.
+                    clock_receipt = hold_episode_clocks_for_open_restore(
+                        env, env_ids=pending_clock_env_ids
+                    )
+                    before_by_env = clock_receipt[
+                        "episode_length_before_hold_by_env"
+                    ]
+                    after_by_env = clock_receipt[
+                        "episode_length_after_hold_by_env"
+                    ]
+                    for pending_env_id in pending_clock_env_ids:
+                        reset_episode_clock_hold_counts[pending_env_id] += 1
+                        reset_episode_clock_latest_receipts[pending_env_id] = {
+                            **clock_receipt,
+                            "episode_length_before_hold": int(
+                                before_by_env[str(pending_env_id)]
+                            ),
+                            "episode_length_after_hold": int(
+                                after_by_env[str(pending_env_id)]
+                            ),
+                        }
+                if forbidden_contact_diagnostic is not None:
+                    control_timestamps = [
+                        float(frame.timestamp_s)
+                        for frame in current_frames
+                        if frame is not None
+                    ]
+                    forbidden_contact_diagnostic.set_control_context(
+                        vector_step=vector_step,
+                        control_timestamp_s=(
+                            max(control_timestamps) if control_timestamps else 0.0
+                        ),
+                        episode_ids=episode_ids,
+                        source_sample_ids=[
+                            sample.sample_id for sample in active_initial_samples
+                        ],
+                        control_steps=[
+                            states.state(env_id).control_step
+                            for env_id in range(num_envs)
+                        ],
+                    )
+                    # Read-only context consumed by the already-existing
+                    # collision evaluator when it snapshots the exact
+                    # termination frame.  It has no controller, filter,
+                    # threshold, reward, or reset authority.
+                    env._g2_stage1a_collision_diagnostic_context = {
+                        "vector_step": int(vector_step),
+                        "control_timestamp_s": float(vector_step * env.step_dt),
+                        "episode_ids": tuple(int(value) for value in episode_ids),
+                        "source_sample_ids": tuple(
+                            sample.sample_id for sample in active_initial_samples
+                        ),
+                        "control_steps": tuple(
+                            int(states.state(env_id).control_step)
+                            for env_id in range(num_envs)
+                        ),
+                    }
                 outputs, consumption = consume_per_env_packet_once(env=env, counter=counter, port=packet_port, packet=packet, label=f"VECTOR_STEP_{vector_step:07d}")
                 records_by_env = telemetry.end_packet(starts)
                 if not consumption.single_batched_consumption or consumption.action_broadcast_detected:
@@ -4752,7 +5151,43 @@ def run_stage1a_isaac_vector_smoke(
                         camera_cache=head_cameras,
                     )
                 ) if sequence_writer is not None else [None for _ in range(num_envs)]
+                # OPEN restore used to perform dozens of scalar ``.item()``
+                # reads per pending clone.  Every CUDA scalar read is a host
+                # synchronization, so the 10-env reset barrier could look
+                # stalled even though physics was still advancing.  Snapshot
+                # the vector state and camera ages once per control step.  This
+                # changes neither the measured values nor any reset predicate.
+                reset_measured_q_cpu: np.ndarray | None = None
+                reset_measured_qd_cpu: np.ndarray | None = None
+                reset_camera_age_ms_cpu: np.ndarray | None = None
+                if bool(np.any(pending_reset)):
+                    reset_measured_q_cpu = (
+                        torch.as_tensor(robot.data.joint_pos, device=env.device)
+                        .detach()
+                        .to("cpu")
+                        .numpy()
+                    )
+                    reset_measured_qd_cpu = (
+                        torch.as_tensor(robot.data.joint_vel, device=env.device)
+                        .detach()
+                        .to("cpu")
+                        .numpy()
+                    )
+                    _reset_capture_times, reset_camera_ages_s = (
+                        camera_capture_time_and_age(
+                            env.scene["right_wrist_camera"]
+                        )
+                    )
+                    reset_camera_age_ms_cpu = (
+                        reset_camera_ages_s.detach().to("cpu").numpy() * 1000.0
+                    )
+                table_clearance_after = (
+                    measure_all_open_table_clearances()
+                    if any(pending_reset)
+                    else [None for _ in range(num_envs)]
+                )
                 reset_ids: list[int] = []
+                initial_barrier_released_this_step = False
                 for env_id in range(num_envs):
                     # A physical vector step is always a full [N, 8] packet,
                     # but the requested training budget counts accepted replay
@@ -4763,10 +5198,113 @@ def run_stage1a_isaac_vector_smoke(
                     if coordinator.accepted_transitions >= accepted_transition_target:
                         tail_env_steps_not_accepted += 1
                         continue
+                    if initial_barrier_released_this_step:
+                        # This vector packet was canonical OPEN reset evidence
+                        # for every clone, never a policy/replay transition.
+                        continue
                     reward_done = bool(reward_step.done[env_id].item())
                     runtime_terminated = bool(terminated[env_id])
                     runtime_truncated = bool(truncated[env_id])
                     terminal_event = bool(reward_done or runtime_terminated or runtime_truncated)
+                    if terminal_event:
+                        # Persist the exact cached manager predicates before
+                        # any clone-local reset.  No predicate is evaluated a
+                        # second time: visibility/table grace counters remain
+                        # untouched and this sidecar cannot affect behavior.
+                        terminal_input = inputs[env_id]
+                        terminal_ee_pose = (
+                            terminal_input.ee_pose_robot_root_m_xyzw[0, 0]
+                            .detach().cpu().numpy().astype(np.float64, copy=False)
+                        )
+                        terminal_arm_q = (
+                            terminal_input.right_arm_joint_position_rad[0, 0]
+                            .detach().cpu().numpy().astype(np.float64, copy=False)
+                        )
+                        terminal_arm_qd = (
+                            terminal_input.right_arm_joint_velocity_rad_s[0, 0]
+                            .detach().cpu().numpy().astype(np.float64, copy=False)
+                        )
+                        source_sample = active_initial_samples[env_id]
+                        terminal_command = rows[env_id]
+                        termination_receipt = capture_task_termination_receipt(
+                            env=env,
+                            env_id=env_id,
+                            episode_id=episode_ids[env_id],
+                            source_sample_id=active_initial_samples[env_id].sample_id,
+                            control_step=states.state(env_id).control_step,
+                            vector_step=vector_step,
+                            runtime_terminated=runtime_terminated,
+                            runtime_truncated=runtime_truncated,
+                            reward_done=reward_done,
+                            gate_receipt=gate_receipts[env_id],
+                            cube_position_world_m=next_state[
+                                "cube_position_world_m"
+                            ][env_id],
+                            robot_root_position_world_m=next_state[
+                                "root_position_world_m"
+                            ][env_id],
+                            maximum_episode_control_steps=int(
+                                getattr(env, "max_episode_length", 640)
+                            ),
+                            runtime_state_receipt={
+                                "state_time_authority": "PRE_ACTION_CAUSAL_PACKET_PLUS_TERMINAL_500HZ_JOINT_SAMPLE",
+                                "nominal_residual_mm": float(
+                                    np.linalg.norm(
+                                        nominal[env_id, :3] - terminal_ee_pose[:3]
+                                    )
+                                    * 1000.0
+                                ),
+                                "ee_pose_robot_root_m_xyzw": terminal_ee_pose.tolist(),
+                                "right_arm_q_rad": terminal_arm_q.tolist(),
+                                "right_arm_qd_rad_s": terminal_arm_qd.tolist(),
+                                "terminal_500hz_all_joint_q_rad": np.asarray(
+                                    records_by_env[env_id][-1]["q_rad"],
+                                    dtype=np.float64,
+                                ).tolist(),
+                                "terminal_500hz_all_joint_qd_rad_s": np.asarray(
+                                    records_by_env[env_id][-1]["raw_qdot_rad_s"],
+                                    dtype=np.float64,
+                                ).tolist(),
+                                "far_reach_command_4d_metric_root_m": list(
+                                    terminal_command.final_action_4d_metric_root_m
+                                ),
+                                "nominal_grasp_target_root_m_xyzw": nominal[
+                                    env_id
+                                ].tolist(),
+                                "cube_pose_robot_root_m_xyzw_pre_action": [
+                                    *state["cube_position_root_m"][env_id]
+                                    .detach().cpu().tolist(),
+                                    *state["cube_quaternion_root_xyzw"][env_id]
+                                    .detach().cpu().tolist(),
+                                ],
+                                "source_ee_pose_robot_root_m_xyzw": list(
+                                    source_sample.ee_pose_robot_root_m_xyzw
+                                ),
+                                "source_cube_pose_robot_root_m_xyzw": list(
+                                    source_sample.cube_pose_robot_root_m_xyzw
+                                ),
+                                "gripper_aperture_mm": gate_receipts[env_id].get(
+                                    "gripper_aperture_mm"
+                                ),
+                                "phase": (
+                                    None
+                                    if decisions[env_id] is None
+                                    else decisions[env_id].phase.value
+                                ),
+                                "owner": owners[env_id],
+                                "forbidden_collision_predicate_raw_mask": bool(
+                                    runtime_terminated
+                                ),
+                            },
+                        )
+                        termination_receipts.append(termination_receipt)
+                        termination_receipt_stream.write(
+                            json.dumps(termination_receipt, sort_keys=True) + "\n"
+                        )
+                        # A task termination receipt is safety/debug evidence,
+                        # not replay.  Flush immediately so a subsequent
+                        # reset/startup failure cannot erase the root cause.
+                        termination_receipt_stream.flush()
                     if pending_reset[env_id]:
                         # A measured OPEN restoration is not a policy/replay
                         # transition.  Do not silently retry a terminal reset:
@@ -4786,6 +5324,12 @@ def run_stage1a_isaac_vector_smoke(
                                 "reward_done": reward_done,
                                 "runtime_terminated": runtime_terminated,
                                 "runtime_truncated": runtime_truncated,
+                                "episode_clock_hold": (
+                                    reset_episode_clock_latest_receipts[env_id]
+                                ),
+                                "episode_clock_hold_count": int(
+                                    reset_episode_clock_hold_counts[env_id]
+                                ),
                             }
                             reset_open_restore_receipts.append(failure_receipt)
                             reset_open_restore_stream.write(
@@ -4803,6 +5347,8 @@ def run_stage1a_isaac_vector_smoke(
                             raise Stage1AVectorIsaacSmokeError(
                                 "VECTOR_RESET_OPEN_RESTORE_TERMINATED"
                             )
+                        progress = reset_open_restore_progress[env_id]
+                        was_completed = bool(progress.completed)
                         frame = next_frames[env_id]
                         geometry: dict[str, Any] | None = None
                         aperture_mm: float | None = None
@@ -4814,13 +5360,40 @@ def run_stage1a_isaac_vector_smoke(
                         camera_watermark = reset_camera_watermarks[env_id]
                         camera_frame_changed_since_restore = False
                         reset_geometry_receipt: dict[str, Any] = {}
-                        if frame is not None:
-                            geometry = _primary_pad_close_geometry(
-                                env=env,
-                                task_mdp=task_mdp,
-                                state=next_state,
-                                env_id=env_id,
-                            )
+                        # Once a clone has reached OPEN parity it remains held
+                        # at the canonical OPEN command until the vector-wide
+                        # initial barrier releases.  Its terminal receipt is
+                        # immutable, so repeating the expensive geometry query
+                        # cannot add evidence and only stalls the remaining
+                        # clones.
+                        if frame is not None and not was_completed:
+                            if reset_open_table_clearance_enabled:
+                                if latest_table_clearance_body_poses is None:
+                                    raise Stage1AVectorIsaacSmokeError(
+                                        "VECTOR_RESET_PAD_POSE_CACHE_MISSING"
+                                    )
+                                geometry = table_clearance_oracles[env_id].measure(
+                                    cube_center_world_m=next_state[
+                                        "cube_position_world_m"
+                                    ][env_id].detach().cpu().numpy(),
+                                    cube_quat_world_xyzw=next_state[
+                                        "cube_quaternion_world_xyzw"
+                                    ][env_id].detach().cpu().numpy(),
+                                    cube_half_extents_m=task_mdp.TASK.cube_half_extents_m,
+                                    body_pose_world_m_xyzw_by_name=(
+                                        latest_table_clearance_body_poses[env_id]
+                                    ),
+                                    table_surface_height_m=(
+                                        task_mdp.TASK.table_surface_height_m
+                                    ),
+                                )
+                            else:
+                                geometry = _primary_pad_close_geometry(
+                                    env=env,
+                                    task_mdp=task_mdp,
+                                    state=next_state,
+                                    env_id=env_id,
+                                )
                             raw_aperture_mm = geometry.get("gripper_aperture_mm")
                             aperture_mm = (
                                 float(raw_aperture_mm)
@@ -4848,13 +5421,9 @@ def run_stage1a_isaac_vector_smoke(
                             # Camera and physics clocks may have different
                             # origins.  Use the camera's own measured age
                             # rather than subtracting unlike clocks.
-                            _capture_times, camera_ages_s = (
-                                camera_capture_time_and_age(
-                                    env.scene["right_wrist_camera"]
-                                )
-                            )
-                            geometry_age_ms = 1000.0 * float(
-                                camera_ages_s[env_id].item()
+                            assert reset_camera_age_ms_cpu is not None
+                            geometry_age_ms = float(
+                                reset_camera_age_ms_cpu[env_id]
                             )
                             camera_frame_changed_since_restore = bool(
                                 camera_watermark is None
@@ -4928,14 +5497,45 @@ def run_stage1a_isaac_vector_smoke(
                                         reset_margin.recordable
                                     ),
                                 }
-                        measured_q = torch.as_tensor(
-                            robot.data.joint_pos, device=env.device
-                        )
-                        measured_qd = torch.as_tensor(
-                            robot.data.joint_vel, device=env.device
-                        )
+                        clearance_decision = None
+                        if reset_open_table_clearance_enabled:
+                            clearance = table_clearance_after[env_id]
+                            if clearance is None:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    "VECTOR_RESET_OPEN_TABLE_CLEARANCE_MISSING"
+                                )
+                            clearance_decision = reset_open_clearance_decision(
+                                source_ee_z_m=reset_source_ee_z_m[env_id],
+                                current_ee_z_m=float(
+                                    next_state["ee_position_root_m"][env_id, 2]
+                                    .detach()
+                                    .cpu()
+                                    .item()
+                                ),
+                                outer_link4_table_clearance_m=float(
+                                    clearance["outer_link4_table_clearance_m"]
+                                ),
+                                inner_link4_table_clearance_m=float(
+                                    clearance["inner_link4_table_clearance_m"]
+                                ),
+                            )
+                            reset_clearance_last_receipts[env_id] = (
+                                clearance_decision.receipt()
+                            )
+                            if clearance_decision.recovery_exhausted:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    "VECTOR_RESET_OPEN_TABLE_CLEARANCE_UNRECOVERABLE"
+                                )
+                            if progress.completed and not clearance_decision.clearance_ready:
+                                raise Stage1AVectorIsaacSmokeError(
+                                    "VECTOR_COMPLETED_OPEN_TABLE_CLEARANCE_REGRESSION"
+                                )
+                        assert reset_measured_q_cpu is not None
+                        assert reset_measured_qd_cpu is not None
                         passive_q = {
-                            name: float(measured_q[env_id, joint_index].item())
+                            name: float(
+                                reset_measured_q_cpu[env_id, joint_index]
+                            )
                             for name, joint_index in zip(
                                 G2_RIGHT_HAND_PASSIVE_OR_MIMIC_JOINT_NAMES,
                                 right_passive_joint_indices,
@@ -4943,31 +5543,59 @@ def run_stage1a_isaac_vector_smoke(
                             )
                         }
                         passive_qd = {
-                            name: float(measured_qd[env_id, joint_index].item())
+                            name: float(
+                                reset_measured_qd_cpu[env_id, joint_index]
+                            )
                             for name, joint_index in zip(
                                 G2_RIGHT_HAND_PASSIVE_OR_MIMIC_JOINT_NAMES,
                                 right_passive_joint_indices,
                                 strict=True,
                             )
                         }
-                        progress = reset_open_restore_progress[env_id]
-                        open_receipt = progress.observe(
-                            master_q_rad=float(
-                                measured_q[env_id, right_master_joint_index].item()
-                            ),
-                            master_qd_rad_s=float(
-                                measured_qd[env_id, right_master_joint_index].item()
-                            ),
-                            passive_q_rad_by_name=passive_q,
-                            passive_qd_rad_s_by_name=passive_qd,
-                            aperture_mm=aperture_mm,
-                            geometry_valid=geometry_valid,
-                            owner_valid=owner_valid,
-                            geometry_frame_id=geometry_frame_id,
-                            geometry_timestamp_s=geometry_timestamp_s,
-                            geometry_age_ms=geometry_age_ms,
-                            geometry_cache_fresh=camera_frame_changed_since_restore,
-                        )
+                        if progress.completed:
+                            # A clone that reached parity early remains held
+                            # at canonical OPEN until the vector-wide initial
+                            # barrier is complete.  Keep its terminal receipt
+                            # immutable while the other clones settle.
+                            open_receipt = dict(progress.last_receipt)
+                        else:
+                            open_receipt = progress.observe(
+                                master_q_rad=float(
+                                    reset_measured_q_cpu[
+                                        env_id, right_master_joint_index
+                                    ]
+                                ),
+                                master_qd_rad_s=float(
+                                    reset_measured_qd_cpu[
+                                        env_id, right_master_joint_index
+                                    ]
+                                ),
+                                passive_q_rad_by_name=passive_q,
+                                passive_qd_rad_s_by_name=passive_qd,
+                                aperture_mm=aperture_mm,
+                                geometry_valid=geometry_valid,
+                                owner_valid=owner_valid,
+                                geometry_frame_id=geometry_frame_id,
+                                geometry_timestamp_s=geometry_timestamp_s,
+                                geometry_age_ms=geometry_age_ms,
+                                geometry_cache_fresh=(
+                                    camera_frame_changed_since_restore
+                                ),
+                                table_clearance_ready=(
+                                    True
+                                    if clearance_decision is None
+                                    else clearance_decision.clearance_ready
+                                ),
+                                minimum_primary_pad_table_clearance_m=(
+                                    None
+                                    if clearance_decision is None
+                                    else clearance_decision.current_minimum_clearance_m
+                                ),
+                            )
+                        if clearance_decision is not None:
+                            open_receipt["open_table_clearance_recovery"] = (
+                                clearance_decision.receipt()
+                            )
                         open_receipt["camera_watermark_before_source_restore"] = (
                             None
                             if camera_watermark is None
@@ -5017,6 +5645,12 @@ def run_stage1a_isaac_vector_smoke(
                         open_receipt["primary_pad_contact_during_open_restore"] = (
                             reset_open_contact
                         )
+                        open_receipt["episode_clock_hold"] = (
+                            reset_episode_clock_latest_receipts[env_id]
+                        )
+                        open_receipt["episode_clock_hold_count"] = int(
+                            reset_episode_clock_hold_counts[env_id]
+                        )
                         open_receipt["first_contact_nominal_residual_mm"] = (
                             float(
                                 np.linalg.norm(
@@ -5031,10 +5665,11 @@ def run_stage1a_isaac_vector_smoke(
                             if reset_open_contact
                             else None
                         )
-                        reset_open_restore_receipts.append(open_receipt)
-                        reset_open_restore_stream.write(
-                            json.dumps(open_receipt, sort_keys=True) + "\n"
-                        )
+                        if not was_completed:
+                            reset_open_restore_receipts.append(open_receipt)
+                            reset_open_restore_stream.write(
+                                json.dumps(open_receipt, sort_keys=True) + "\n"
+                            )
                         if reset_open_contact:
                             _atomic_json(
                                 output_dir / "FAIL_CLOSED.json",
@@ -5063,51 +5698,94 @@ def run_stage1a_isaac_vector_smoke(
                             )
                         if not progress.completed:
                             continue
+                        activation_env_ids = (env_id,)
+                        if initial_reset_barrier_active:
+                            if not all(
+                                item.completed
+                                for item in reset_open_restore_progress
+                            ):
+                                continue
+                            activation_env_ids = tuple(
+                                candidate_env_id
+                                for candidate_env_id in range(num_envs)
+                                if pending_reset[candidate_env_id]
+                            )
+                            initial_reset_barrier_active = False
+                            initial_barrier_released_this_step = True
                         # Re-enter the policy only after measured parity.  All
                         # episode-local recurrent/cache/latch state is reset
                         # *after* the OPEN hold so no reset-era observation can
                         # affect the first policy action or teacher row.
-                        activation_mask = torch.zeros(
-                            num_envs, dtype=torch.bool, device=env.device
-                        )
-                        activation_mask[env_id] = True
-                        reward.reset(activation_mask)
-                        telemetry.reset_envs((env_id,))
-                        state_adapter.reset(env_id)
-                        states.reset(env_id)
-                        if current_gru_privileged is not None:
-                            current_gru_privileged.reset(env_id)
-                        phase_routers[env_id].reset()
-                        close_gates[env_id] = new_close_gate()
-                        privileged_geometry_cache[env_id] = None
-                        privileged_geometry_frame_ids[env_id] = None
-                        privileged_geometry_poll_counts[env_id] = 0
-                        privileged_geometry_timestamp_s[env_id] = None
-                        post_close_control_phase[env_id] = "PRE_CLOSE"
-                        last_contact_quality[env_id] = None
-                        episode_failure_diagnostics[env_id] = None
-                        previous_action[env_id] = 0.0
-                        previous_residual[env_id] = 0.0
-                        # The immediately preceding OPEN packet has now
-                        # supplied both joint and fresh geometry evidence.
-                        # Re-enter this one environment's recurrent policy
-                        # without consuming a replay transition, leaving all
-                        # other clones unchanged.
-                        next_distance = float(np.linalg.norm(nominal[env_id, :3] - next_state["ee_position_root_m"][env_id].detach().cpu().numpy()))
-                        first_active_inputs = replace(
-                            next_inputs[env_id],
-                            hidden_reset_mask=torch.ones_like(
-                                next_inputs[env_id].hidden_reset_mask
-                            ),
-                        )
-                        next_proposal, next_decision, next_owner, retreat = propose(
-                            env_id, first_active_inputs, next_distance
-                        )
-                        if retreat or next_proposal is None or next_decision is None:
-                            reset_ids.append(env_id)
-                            continue
-                        proposals[env_id], decisions[env_id], owners[env_id] = next_proposal, next_decision, next_owner
-                        pending_reset[env_id] = False
+                        for activation_env_id in activation_env_ids:
+                            activation_clock_receipt = (
+                                hold_episode_clocks_for_open_restore(
+                                    env, env_ids=(activation_env_id,)
+                                )
+                            )
+                            reset_episode_clock_latest_receipts[
+                                activation_env_id
+                            ] = activation_clock_receipt
+                            activation_mask = torch.zeros(
+                                num_envs, dtype=torch.bool, device=env.device
+                            )
+                            activation_mask[activation_env_id] = True
+                            reward.reset(activation_mask)
+                            telemetry.reset_envs((activation_env_id,))
+                            state_adapter.reset(activation_env_id)
+                            states.reset(activation_env_id)
+                            if current_gru_privileged is not None:
+                                current_gru_privileged.reset(activation_env_id)
+                            phase_routers[activation_env_id].reset()
+                            close_gates[activation_env_id] = new_close_gate()
+                            privileged_geometry_cache[activation_env_id] = None
+                            privileged_geometry_frame_ids[activation_env_id] = None
+                            privileged_geometry_poll_counts[activation_env_id] = 0
+                            privileged_geometry_timestamp_s[activation_env_id] = None
+                            post_close_control_phase[activation_env_id] = "PRE_CLOSE"
+                            last_contact_quality[activation_env_id] = None
+                            episode_failure_diagnostics[activation_env_id] = None
+                            previous_action[activation_env_id] = 0.0
+                            previous_residual[activation_env_id] = 0.0
+                            next_distance = float(
+                                np.linalg.norm(
+                                    nominal[activation_env_id, :3]
+                                    - next_state["ee_position_root_m"][
+                                        activation_env_id
+                                    ]
+                                    .detach()
+                                    .cpu()
+                                    .numpy()
+                                )
+                            )
+                            first_active_inputs = replace(
+                                next_inputs[activation_env_id],
+                                hidden_reset_mask=torch.ones_like(
+                                    next_inputs[
+                                        activation_env_id
+                                    ].hidden_reset_mask
+                                ),
+                            )
+                            (
+                                next_proposal,
+                                next_decision,
+                                next_owner,
+                                retreat,
+                            ) = propose(
+                                activation_env_id,
+                                first_active_inputs,
+                                next_distance,
+                            )
+                            if (
+                                retreat
+                                or next_proposal is None
+                                or next_decision is None
+                            ):
+                                reset_ids.append(activation_env_id)
+                                continue
+                            proposals[activation_env_id] = next_proposal
+                            decisions[activation_env_id] = next_decision
+                            owners[activation_env_id] = next_owner
+                            pending_reset[activation_env_id] = False
                         continue
                     if runtime_terminated and not reward_done:
                         # The coordinator intentionally owns ``terminated``
@@ -5291,6 +5969,8 @@ def run_stage1a_isaac_vector_smoke(
                 if (
                     num_envs > 1
                     and not reset_probe_completed
+                    and not initial_reset_barrier_active
+                    and not bool(np.any(pending_reset))
                     and vector_step >= 1
                 ):
                     reset_ids.append(0)
@@ -5472,6 +6152,13 @@ def run_stage1a_isaac_vector_smoke(
                         samples=tuple(reset_samples),
                         env_ids=unique,
                         allow_explicit_paired_clone_duplicates=paired_clone_allocation,
+                        # The collision-pair diagnostic deliberately assigns
+                        # three independent clones to each immutable source
+                        # row.  Preserve only that explicit diagnostic
+                        # allocation when a terminated clone is restored.
+                        allow_explicit_diagnostic_duplicates=(
+                            collision_diagnostic_allocation
+                        ),
                     )
                     # See the initial direct-restore reset above.  Keep the
                     # action/governor cache generation aligned with the new
@@ -5498,6 +6185,12 @@ def run_stage1a_isaac_vector_smoke(
                             source_sample_id=active_initial_samples[env_id].sample_id,
                             reset_vector_step=vector_step + 1,
                         )
+                        reset_source_ee_z_m[env_id] = float(
+                            active_initial_samples[env_id].ee_pose_robot_root_m_xyzw[2]
+                        )
+                        reset_clearance_last_receipts[env_id] = None
+                        reset_episode_clock_hold_counts[env_id] = 0
+                        reset_episode_clock_latest_receipts[env_id] = None
                     if reset_probe_receipt["executed"] and reset_probe_receipt["other_env_state_unchanged"] is None:
                         other_after = {
                             env_id: (
@@ -5518,6 +6211,39 @@ def run_stage1a_isaac_vector_smoke(
                 for env_id in set(reset_ids):
                     current_frames[env_id] = None
                     head_current_frames[env_id] = None
+                if bool(np.any(pending_reset)) and vector_step % 5 == 0:
+                    # The measured-state OPEN gate intentionally precedes
+                    # replay and W&B initialization.  Emit a compact durable
+                    # heartbeat so a long four-bar settle cannot be mistaken
+                    # for a dead training process.
+                    print(
+                        json.dumps(
+                            {
+                                "stage": "RESET_OPEN_RESTORE_HEARTBEAT",
+                                "vector_step": int(vector_step),
+                                "accepted_transitions": int(
+                                    coordinator.accepted_transitions
+                                ),
+                                "open_restore_pass_count": int(
+                                    sum(
+                                        item.completed
+                                        for item in reset_open_restore_progress
+                                    )
+                                ),
+                                "open_restore_pending_count": int(
+                                    np.count_nonzero(pending_reset)
+                                ),
+                                "maximum_open_command_steps_observed": int(
+                                    max(
+                                        item.open_command_steps
+                                        for item in reset_open_restore_progress
+                                    )
+                                ),
+                            },
+                            sort_keys=True,
+                        ),
+                        flush=True,
+                    )
                 metric_stream.flush()
                 replay_stream.flush()
                 failure_stream.flush()
@@ -5805,33 +6531,87 @@ def run_stage1a_isaac_vector_smoke(
                 continue
             reset_attempt_last_receipt[(int(item["env_id"]), int(item["episode_id"]))] = item
         reset_attempts = list(reset_attempt_last_receipt.values())
+        reset_completed_attempts = [
+            item
+            for item in reset_attempts
+            if bool(item.get("open_restore_pass", False))
+        ]
+        reset_failed_attempts = [
+            item
+            for item in reset_attempts
+            if bool(item.get("open_restore_expired", False))
+            or item.get("failure_reason") not in (None, "")
+            or bool(item.get("runtime_truncated", False))
+            or bool(item.get("runtime_terminated", False))
+        ]
+        reset_pending_attempts = [
+            item
+            for item in reset_attempts
+            if item not in reset_completed_attempts
+            and item not in reset_failed_attempts
+        ]
         reset_open_restore_summary = {
             "schema": RESET_OPEN_RESTORE_SCHEMA,
             "attempt_count": len(reset_attempts),
-            "pass_count": sum(
-                bool(item.get("open_restore_pass", False))
-                for item in reset_attempts
-            ),
-            "failure_count": sum(
-                not bool(item.get("open_restore_pass", False))
-                for item in reset_attempts
-            ),
-            "open_restore_pass": bool(reset_attempts) and all(
-                bool(item.get("open_restore_pass", False))
-                for item in reset_attempts
-            ),
-            "reset_parity_pass": bool(reset_attempts) and all(
+            "pass_count": len(reset_completed_attempts),
+            "failure_count": len(reset_failed_attempts),
+            # A reset begun immediately before the accepted-transition budget
+            # closes is right-censored, not a failed restore.  Promotion still
+            # requires at least one completed measured restore and rejects any
+            # explicit expiry/termination/failure receipt.
+            "right_censored_pending_count": len(reset_pending_attempts),
+            "open_restore_pass": bool(reset_completed_attempts)
+            and not reset_failed_attempts,
+            "reset_parity_pass": bool(reset_completed_attempts) and all(
                 bool(item.get("master_open_ok", False))
                 and bool(item.get("velocity_settled", False))
                 and bool(item.get("aperture_open_ok", False))
-                for item in reset_attempts
+                and (
+                    not reset_open_table_clearance_enabled
+                    or bool(item.get("table_clearance_ready", False))
+                )
+                for item in reset_completed_attempts
             ),
-            "teacher_receipt_parity_pass": bool(reset_attempts) and all(
+            "open_table_clearance_enabled": bool(
+                reset_open_table_clearance_enabled
+            ),
+            "open_table_minimum_clearance_m": (
+                OPEN_TABLE_MINIMUM_CLEARANCE_M
+                if reset_open_table_clearance_enabled
+                else None
+            ),
+            "open_table_clearance_pass": bool(reset_completed_attempts)
+            and all(
+                bool(item.get("table_clearance_ready", False))
+                for item in reset_completed_attempts
+            )
+            if reset_open_table_clearance_enabled
+            else None,
+            "teacher_receipt_parity_pass": bool(reset_completed_attempts) and all(
                 bool(item.get("fresh_geometry_receipt", False))
-                for item in reset_attempts
+                for item in reset_completed_attempts
             ),
             "previous_episode_geometry_used": sum(
                 not bool(item.get("geometry_cache_fresh", False))
+                for item in reset_attempts
+            ),
+            "episode_clock_hold_pass": bool(reset_attempts)
+            and all(
+                bool((item.get("episode_clock_hold") or {}).get("episode_clock_held"))
+                and int(
+                    (item.get("episode_clock_hold") or {}).get(
+                        "episode_length_after_hold", -1
+                    )
+                )
+                == 0
+                for item in reset_attempts
+            ),
+            "episode_clock_hold_count": sum(
+                int(item.get("episode_clock_hold_count", 0))
+                for item in reset_attempts
+            ),
+            "episode_timeout_during_open_restore_count": sum(
+                bool(item.get("runtime_truncated", False))
                 for item in reset_attempts
             ),
             "minimum_open_command_steps": (
@@ -6002,6 +6782,30 @@ def run_stage1a_isaac_vector_smoke(
             "runtime_unattributed_termination_discarded_env_steps": (
                 runtime_unattributed_termination_discarded_env_steps
             ),
+            "task_termination_diagnostics": {
+                "schema": TERMINATION_RECEIPT_SCHEMA,
+                "receipt_path": str(
+                    output_dir / "TASK_TERMINATION_RECEIPTS.jsonl"
+                ),
+                "receipt_count": len(termination_receipts),
+                "runtime_terminated_count": sum(
+                    bool(item.get("runtime_terminated", False))
+                    for item in termination_receipts
+                ),
+                "precontact_visibility_trigger_count": sum(
+                    bool(item.get("precontact_visibility_triggered", False))
+                    for item in termination_receipts
+                ),
+                "cube_bounds_trigger_count": sum(
+                    bool(item.get("cube_bounds_triggered", False))
+                    for item in termination_receipts
+                ),
+                "fixed_torso_drift_trigger_count": sum(
+                    bool(item.get("fixed_torso_drift_triggered", False))
+                    for item in termination_receipts
+                ),
+                "behavior_changed": False,
+            },
             "reset_isolation": "PER_ENV",
             "reset_probe": reset_probe_receipt,
             "control_hz": 50,
@@ -6037,6 +6841,19 @@ def run_stage1a_isaac_vector_smoke(
             ),
             "source_freeze_match": dict(source_freeze_before) == dict(freeze_after),
             "vector_contract_pass": vector_contract_pass,
+            "WANDB_INITIALIZATION_DEFERRED_UNTIL_RESET_GATE": bool(
+                wandb_enabled and _is_reset_fixed_25env_variant(runtime_variant)
+            ),
+            "WANDB_INITIALIZED_AFTER_ACCEPTED_TRANSITION": bool(
+                run is not None
+                and (
+                    not isinstance(run, DeferredWandbRun)
+                    or (
+                        run.initialized
+                        and coordinator.accepted_transitions > 0
+                    )
+                )
+            ),
             "wandb": ({"id": run.id, "url": run.url} if run is not None else None),
             "TRAINING_COMPLETED": (
                 False
@@ -6360,6 +7177,8 @@ def run_stage1a_isaac_vector_smoke(
         if run is not None: run.finish(exit_code=2)
         raise
     finally:
+        if forbidden_contact_diagnostic is not None:
+            forbidden_contact_diagnostic.close()
         if sequence_writer is not None:
             sequence_writer.close()
         if wrist_rgbd_writer is not None:
