@@ -5,12 +5,22 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _portable_builder():
+    path = ROOT / "scripts/repro/build_portable_deliverables.py"
+    spec = importlib.util.spec_from_file_location("portable_builder_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def test_method_matrix_is_exactly_a_to_g() -> None:
@@ -159,3 +169,10 @@ def test_all_live_methods_require_actual_runtime_initializers() -> None:
     }
     assert required <= set(by_id)
     assert all("all_live_methods" in by_id[item]["required_for"] for item in required)
+
+
+def test_transfer_bundle_binds_exact_source_repository() -> None:
+    receipt = _portable_builder().source_repository_receipt()
+    assert receipt["branch"] == "stage1a-portable-training"
+    assert len(receipt["commit"]) == 40
+    assert receipt["url"].endswith("/leeganghyun97/genie_sim.git")

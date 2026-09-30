@@ -83,6 +83,29 @@ def dependency_closure(roots: list[str]) -> list[str]:
     return [str(value) for value in payload["files"]]
 
 
+def source_repository_receipt() -> dict[str, str]:
+    """Bind a Drive bundle to the exact Git source that can consume it."""
+
+    def query(*arguments: str) -> str:
+        result = subprocess.run(
+            ["git", *arguments],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        value = result.stdout.strip()
+        if result.returncode != 0 or not value:
+            raise SystemExit(f"GIT_SOURCE_RECEIPT_FAILED:{' '.join(arguments)}")
+        return value
+
+    return {
+        "url": query("config", "--get", "remote.origin.url"),
+        "branch": query("rev-parse", "--abbrev-ref", "HEAD"),
+        "commit": query("rev-parse", "HEAD"),
+    }
+
+
 KEYBOARD_README = """# G2 Keyboard-v3 collection (ROS2-free source release)
 
 This repository contains the simulator-only G2 Keyboard-v3 collection and
@@ -245,6 +268,7 @@ def export_transfer(args: argparse.Namespace) -> int:
         raise SystemExit(f"OUTPUT_REFUSES_OVERWRITE:{destination}")
     destination.mkdir(parents=True)
     spec = load_object(TRANSFER_SPEC)
+    source_repository = source_repository_receipt()
     included: list[dict[str, Any]] = []
     missing_optional: list[str] = []
     for entry in spec["entries"]:
@@ -269,6 +293,8 @@ def export_transfer(args: argparse.Namespace) -> int:
         "Upload the sibling `.tar.gz` and `.sha256` files to Google Drive. "
         "On the target machine, verify SHA-256 before extracting. This bundle "
         "contains authorized local-transfer artifacts and must not be committed to Git.\n\n"
+        f"Source: `{source_repository['url']}` branch `{source_repository['branch']}` "
+        f"commit `{source_repository['commit']}`.\n\n"
         "```bash\nsha256sum -c g2-stage1a-data-models.tar.gz.sha256\n"
         "tar -xzf g2-stage1a-data-models.tar.gz\n"
         "python3 scripts/repro/minimal_training_bundle.py verify --bundle <extracted>/runtime/minimal_bundle\n```\n",
@@ -279,6 +305,7 @@ def export_transfer(args: argparse.Namespace) -> int:
         "schema": "g2_stage1a_drive_bundle_manifest_v1",
         "bundle_name": spec["bundle_name"],
         "distribution_scope": spec["distribution_scope"],
+        "source_repository": source_repository,
         "included_entries": included,
         "missing_optional_entries": missing_optional,
         "file_count": len(rows),
