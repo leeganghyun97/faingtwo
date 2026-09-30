@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023-2026, AgiBot Inc. All Rights Reserved.
-# Author: Genie Sim Team
-# License: Mozilla Public License Version 2.0
-
 """Offline five-epoch BC warm-start for canonical Candidate-A OPEN-only rows.
 
 This entry point is deliberately narrower than the historical keyboard BC

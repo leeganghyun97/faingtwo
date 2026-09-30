@@ -1,5 +1,7 @@
 {
+  "schema": "g2_m2_arm_move_target_contract_v1",
   "authority": "FROZEN_NUMERIC_TARGET_FROM_EXISTING_M2_CAPTURE_INPUT",
+  "seed": 42,
   "physics_dt_s": 0.002,
   "right_arm_joint_names": [
     "idx61_arm_r_joint1",
@@ -19,15 +21,13 @@
     0.020679954439401627,
     -0.8853430151939392
   ],
-  "schema": "g2_m2_arm_move_target_contract_v1",
-  "scope": "The numerical endpoint is frozen so M0/M1/M1.5 do not open or scan teleoperation data. It is not an authority to tune the passive chain to teleoperation data.",
-  "seed": 42,
   "source": {
-    "episode": "demo_10",
     "kind": "offline_extraction_only_not_runtime_dependency",
     "pose_source_hdf5": "/data/fain-data/test/output/g2_keyboard_human_20260908_113709/collection/g2_keyboard_teacher_rgbd.hdf5",
     "pose_source_hdf5_sha256": "01d0bfa3d83e50a63790420619c7f27ef856417e51b0c7353d35fff95816a47a",
-    "row": 361,
-    "selection": "sorted data episode first bilateral_contact & stable_grasp & forbidden_collision_valid & !forbidden_collision row"
-  }
+    "selection": "sorted data episode first bilateral_contact & stable_grasp & forbidden_collision_valid & !forbidden_collision row",
+    "episode": "demo_10",
+    "row": 361
+  },
+  "scope": "The numerical endpoint is frozen so M0/M1/M1.5 do not open or scan teleoperation data. It is not an authority to tune the passive chain to teleoperation data."
 }

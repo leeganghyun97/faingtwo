@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023-2026, AgiBot Inc. All Rights Reserved.
-# Author: Genie Sim Team
-# License: Mozilla Public License Version 2.0
-
 """Bounded BC runtime preflight for the qualified 4-D G2 policy task.
 
 The default invocation is a CPU-only dry run.  ``--execute-live`` is an

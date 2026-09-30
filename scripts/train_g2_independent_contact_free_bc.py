@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023-2026, AgiBot Inc. All Rights Reserved.
-# Author: Genie Sim Team
-# License: Mozilla Public License Version 2.0
-
 """Grouped BC/CV for exact-contract cuRobo and keyboard-v2 rollouts.
 
 This trainer is intentionally separate from the historical single-rollout

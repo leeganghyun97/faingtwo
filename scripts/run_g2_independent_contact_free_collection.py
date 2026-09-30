@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023-2026, AgiBot Inc. All Rights Reserved.
-# Author: Genie Sim Team
-# License: Mozilla Public License Version 2.0
-
 """Collect an immutable, independent contact-free rollout set.
 
 Each seed is executed in a fresh child process through the already reviewed

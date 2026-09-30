@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-# Copyright (c) 2023-2026, AgiBot Inc. All Rights Reserved.
-# Author: Genie Sim Team
-# License: Mozilla Public License Version 2.0
-
 """Start grouped contact-free BC/CV only after a complete 30-run manifest."""
 
 from __future__ import annotations
