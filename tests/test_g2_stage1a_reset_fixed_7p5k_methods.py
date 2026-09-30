@@ -88,6 +88,20 @@ def test_comparison_fails_closed_before_starting_later_methods() -> None:
     assert 'static_results["fail_closed_method"] = method.label' in orchestrator
 
 
+def test_fair_6k_orchestrators_accept_ten_envs_without_changing_method_logic() -> None:
+    comparison = (
+        ROOT / "scripts/run_g2_stage1a_reset_fixed_7p5k_comparison.py"
+    ).read_text(encoding="utf-8")
+    smoke_then_comparison = (
+        ROOT / "scripts/run_g2_stage1a_g_smoke_then_6k_comparison.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'choices=(10, 25), default=25' in comparison
+    assert '"--num-envs",\n        str(args.num_envs)' in comparison
+    assert 'choices=(10, 25), default=10' in smoke_then_comparison
+    assert 'str(args.comparison_num_envs)' in smoke_then_comparison
+
+
 def test_method_behavior_aliases_use_existing_canonical_predicates() -> None:
     runtime = RUNTIME.read_text(encoding="utf-8")
     assert "def _is_v31_variant" in runtime

@@ -3,7 +3,7 @@
 # Author: Genie Sim Team
 # License: Mozilla Public License Version 2.0
 
-"""Sequential reset-fixed Stage-1A preflight and fair 7.5K comparison.
+"""Sequential reset-fixed Stage-1A preflight and fair 6K/7.5K comparison.
 
 Each method is launched through the existing fresh-top-level-process
 supervisor.  Each full run performs physics smoke and measured-state reset
@@ -155,6 +155,8 @@ def reset_pass(report: dict[str, Any], *, preflight: bool) -> tuple[bool, dict[s
         and bool(completed)
         and all(bool(row.get("fresh_geometry_receipt", False)) for row in completed)
         and all(not bool(row.get("previous_episode_geometry_used", False)) for row in completed)
+        and bool(reset.get("episode_clock_hold_pass", False))
+        and int(reset.get("episode_timeout_during_open_restore_count", -1)) == 0
         and float(report.get("PREMATURE_PRE_CLOSE_CONTACT_RATE", 0.0) or 0.0) == 0.0
         and (not preflight or len(completed) >= 25)
     )
@@ -164,6 +166,12 @@ def reset_pass(report: dict[str, Any], *, preflight: bool) -> tuple[bool, dict[s
         "explicit_failures": len(failures),
         "previous_episode_geometry_used": sum(
             bool(row.get("previous_episode_geometry_used", False)) for row in completed
+        ),
+        "episode_clock_hold_pass": bool(
+            reset.get("episode_clock_hold_pass", False)
+        ),
+        "episode_timeout_during_open_restore_count": int(
+            reset.get("episode_timeout_during_open_restore_count", -1)
         ),
     }
 
@@ -180,7 +188,7 @@ def command(args: argparse.Namespace, method: Method, run_root: Path, *, preflig
         "--seed",
         str(args.seed),
         "--num-envs",
-        "25",
+        str(args.num_envs),
         "--accepted-transitions",
         str(target),
         "--runtime-variant",
@@ -215,6 +223,7 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--python", type=Path, default=DEFAULT_PYTHON)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--num-envs", type=int, choices=(10, 25), default=25)
     parser.add_argument(
         "--accepted-transitions", type=int, choices=(6000, 7500), default=7500
     )
@@ -241,9 +250,11 @@ def main() -> int:
                 "schema": "g2_stage1a_reset_fixed_fair_7p5k_comparison_v1",
                 "status": status,
                 "common_contract": {
-                    "num_envs": 25,
+                    "num_envs": int(args.num_envs),
                     "accepted_transitions": int(args.accepted_transitions),
-                    "transitions_per_env": int(args.accepted_transitions) // 25,
+                    "transitions_per_env": (
+                        int(args.accepted_transitions) // int(args.num_envs)
+                    ),
                     "seed": args.seed,
                     "replay": "HER_FORCE",
                     "old_distillation_used": False,
@@ -303,6 +314,16 @@ def main() -> int:
             entry["grasp_evaluation"] = completed.get("GRASP_EVALUATION")
             entry["wandb"] = completed.get("wandb")
         persist("TRAINING_RUNNING")
+        if entry["training"] != "PASS":
+            # A missing method invalidates the fixed-seed A--G comparison.
+            # Stop immediately instead of spending hours on later methods
+            # whose results cannot form a complete fair table.
+            static_results["fail_closed_method"] = method.label
+            static_results["fail_closed_reason"] = (
+                "METHOD_TRAINING_OR_RESET_CONTRACT_FAILED"
+            )
+            persist("METHOD_FAIL_CLOSED")
+            return 2
 
     persist("COMPARISON_READY")
     return 0

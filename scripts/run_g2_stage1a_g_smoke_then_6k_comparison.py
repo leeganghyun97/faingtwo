@@ -3,7 +3,7 @@
 # Author: Genie Sim Team
 # License: Mozilla Public License Version 2.0
 
-"""Run the G update-free OPEN smoke, then A--G reset-fixed 25-env 6K."""
+"""Run the G update-free OPEN smoke, then A--G reset-fixed fair 6K."""
 
 from __future__ import annotations
 
@@ -54,14 +54,14 @@ def completed_report(root: Path) -> dict[str, Any] | None:
     return None
 
 
-def smoke_pass(report: dict[str, Any]) -> bool:
+def smoke_pass(report: dict[str, Any], *, expected_num_envs: int) -> bool:
     reset = report.get("reset_open_restore")
     if not isinstance(reset, dict):
         return False
     attempts = [row for row in reset.get("attempts", []) if isinstance(row, dict)]
     initial = [row for row in attempts if int(row.get("episode_id", -1)) == 0]
     return bool(
-        len(initial) == 25
+        len(initial) == expected_num_envs
         and all(bool(row.get("open_restore_pass", False)) for row in initial)
         and all(bool(row.get("fresh_geometry_receipt", False)) for row in initial)
         and all(bool(row.get("geometry_cache_fresh", False)) for row in initial)
@@ -80,6 +80,7 @@ def main() -> int:
     parser.add_argument("--smoke-root", type=Path, required=True)
     parser.add_argument("--comparison-root", type=Path, required=True)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--comparison-num-envs", type=int, choices=(10, 25), default=10)
     parser.add_argument("--wandb-prefix", required=True)
     parser.add_argument("--wandb-group", default="stage1a-reset-fixed-fair-6k")
     parser.add_argument("--constructor-timeout-s", type=float, default=45.0)
@@ -96,7 +97,7 @@ def main() -> int:
             "--output-root", str(args.smoke_root),
             "--python", str(PYTHON),
             "--seed", str(args.seed),
-            "--num-envs", "25",
+            "--num-envs", str(args.comparison_num_envs),
             "--accepted-transitions", "100",
             "--runtime-variant",
             "V3_CURRENT_GRU_PRIVILEGED_HER_FORCE_RESET_FIXED_7P5K_25ENV",
@@ -113,7 +114,9 @@ def main() -> int:
         if result.returncode != 0:
             raise SystemExit("G_OPEN_RESTORE_SMOKE_FAILED")
         report = completed_report(args.smoke_root)
-    if report is None or not smoke_pass(report):
+    if report is None or not smoke_pass(
+        report, expected_num_envs=args.comparison_num_envs
+    ):
         raise SystemExit("G_OPEN_RESTORE_SMOKE_CONTRACT_FAILED")
     if args.comparison_root.exists():
         raise SystemExit("COMPARISON_OUTPUT_REFUSES_OVERWRITE")
@@ -122,6 +125,7 @@ def main() -> int:
         "--output-root", str(args.comparison_root),
         "--python", str(PYTHON),
         "--seed", str(args.seed),
+        "--num-envs", str(args.comparison_num_envs),
         "--accepted-transitions", "6000",
         "--constructor-timeout-s", str(args.constructor_timeout_s),
         "--training-timeout-s", str(args.training_timeout_s),
