@@ -1,83 +1,81 @@
 # Stage-1A reproducibility audit
 
-Audit date: 2026-09-29
+Audit date: 2026-09-30
 
-This receipt describes the explicit reproducibility profile on branch
-`chore/reproducible-a-to-g-release`. It does not certify excluded production
-assets, real datasets, or robot hardware.
+This receipt covers the portable G2 Stage-1A release on branch
+`stage1a-portable-training`. It certifies the repository source and the
+separately hash-verified transfer bundle; Isaac Sim/Lab remain host-installed.
 
 ## Scope and result
 
 | Area | Result | Evidence |
 |---|---|---|
-| Method A–G definitions | PASS (7/7) | Code-derived matrix and JSON registry; no inferred variants |
-| Canonical dependency closure | PASS | 116 repository-local Python/shell files resolved from the live roots |
-| G2 teleop/training authority | PASS | 24 hash-pinned URDF/SRDF/config/action/runtime files; scale and rate parity |
-| Static preflight | PASS | Secrets, canonical absolute paths, runtime data, G2 authority, config and fixture checks |
-| Current shell live preflight | NOT_READY | `.env` is not configured; external checkpoints remain fail-closed |
-| Required static clean-export smoke | PASS | bootstrap check, preflight, sample validation, A–G dry-run, 6 tests |
-| Extended clean-export regression | PARTIAL | 206 passed; 13 require excluded source assets/catalogs or noncanonical legacy entrypoints |
-| Method A–G GPU/Isaac execution | NOT_RUN | Long live experiments were not started by this packaging audit |
-| Real robot runtime | NOT_RUN | The release wrappers do not authorize hardware |
-| Remote delivery | BLOCKED | Configured project fork is publicly visible; private-only push policy applied |
+| Method A–G definitions | PASS (7/7) | JSON registry and clean-clone dry-run dispatch |
+| Canonical dependency closure | PASS | Static preflight: 71/71 checks |
+| G2 teleop/training authority | PASS | Hash-pinned URDF/SRDF/config/action/runtime files |
+| Clean-clone static regression | PASS | 19 tests |
+| AppLauncher smoke | PASS | 3/3 constructor probes; 0 hangs |
+| Physics smoke | PASS | first step and finite observation/action/reward/termination |
+| Stage-1A 10-env smoke | PASS | 100-transition preflight; reset OPEN parity 10/10 |
+| External transfer bundle | PASS | 58 files; internal `SHA256SUMS` verified |
+| Keyboard-v3 ROS2-free source | PASS | separate repository; 25 tests |
+| Method A–G long training | NOT_RUN | Packaging validation does not claim new performance results |
+| Real robot runtime | NOT_RUN | Release entrypoints do not authorize hardware |
 
 ## Security and repository contents
 
-- The staged release set contains 203 files and approximately 4.5 MB.
-- No newly staged file is 10 MB or larger.
-- No dataset, rosbag, checkpoint, video, W&B run, raw camera artifact, private
-  drawing, `.env`, or credential is staged.
-- The tracked-file scanner found no populated token assignment or private-key
-  header. Two upstream constants with empty API-key defaults are not secrets.
-- Four upstream teleop/native-SDK symlinks are documented external exclusions.
-  The Stage-1A canonical dependency closure does not use them; every
-  unexpected broken tracked symlink remains a preflight failure.
-- The public upstream binary wheels are pre-existing upstream content. This
-  release adds no third-party binary or model.
+- Large datasets, checkpoints, raw RGB-D, W&B runs, Kit/Omniverse caches,
+  local environments, ROS2 workspaces and credentials are excluded from Git.
+- Static preflight found no populated token/private-key material, canonical
+  user-specific absolute path, or tracked runtime dataset.
+- External Candidate-A assets, BC policies, student/checkpoint artifacts and
+  optional Keyboard-v3 BC datasets are delivered by the transfer archive and
+  verified by SHA-256.
+- Four upstream native teleop symlinks are documented external exclusions and
+  are not dependencies of the canonical Stage-1A simulator path.
 
-## Clean validation detail
+## Clean-clone validation
 
-The required `scripts/smoke_test.sh` succeeds using only the selected release
-files and an existing Python interpreter:
+The authoritative clean clone was checked out from:
 
-1. bootstrap contract check;
-2. static preflight and secret scan;
-3. synthetic dataset validation;
-4. Method A–G config/dry-run dispatch;
-5. reproducibility release tests (`6 passed`), including exact G2 authority
-   hashes and teleop/action-scale separation.
+```text
+https://github.com/leeganghyun97/genie_sim.git
+branch: stage1a-portable-training
+```
 
-The Stage-1A training authority now distinguishes the 22.5 mm teleop
-normalization divisor, 4.5 mm final metric action bound, and 0.45 mm effective
-Residual-SAC authority. It also binds the latest training URDF to the cuRobo
-asset-pack mirror by SHA-256. See `docs/G2_TELEOP_TRAINING_AUTHORITY.md`.
+Validation completed with:
 
-The larger selected regression run reached `206 passed`. The remaining tests
-were deliberately not promoted to PASS because they require either:
+1. static preflight and source/asset authority checks;
+2. 19 selected static tests;
+3. Method A–G 10-env/6K command resolution;
+4. AppLauncher 3/3 bounded constructor probes;
+5. first physics step with finite vector receipts;
+6. 10-env measured OPEN restore and reset parity;
+7. no runtime hard-stop, forbidden collision, action-bound violation,
+   gripper-authority violation, or premature pre-CLOSE contact in the smoke.
 
-- the excluded Candidate-A production asset/source catalog; or
-- broader historical collection/audit files outside the canonical A–G
-  runtime dependency closure.
-
-After authorized asset migration, run live preflight before any Isaac smoke.
-Missing or mismatched files remain fail-closed and must not be replaced by
-relaxed hashes.
+The 100-transition Stage-1A run is a wiring/reset/safety smoke, not a grasp
+performance benchmark. A–G long training must still be run on the destination
+GPU after live preflight passes.
 
 ## Verified workstation reference
 
-- Ubuntu 22.04.5 LTS; ROS 2 Humble
+- Ubuntu 22.04.5 LTS
 - Python 3.12.14 in the Isaac environment
-- NVIDIA driver 580.178.04; RTX 5080 (16,303 MiB)
-- PyTorch 2.10.0+cu128; torchvision 0.25.0+cu128
 - Isaac Sim 6.0.1.0; Isaac Lab 6.1.14
-- nvidia-curobo 0.7.7.post1.dev5; W&B 0.26.1
+- PyTorch 2.10.0+cu128; CUDA 12.8
+- NVIDIA driver 580.178.04; RTX 5080 16 GB
+- W&B 0.26.1
 
-These versions are a validated compatibility point, not guessed minimums.
+ROS2 is not required by the portable Stage-1A simulator or the separate
+Keyboard-v3 collection repository.
 
-## Remote visibility decision
+## Known limitations
 
-The configured `g2-preloss-fork` is accessible through the authenticated SSH
-remote, but its GitHub repository API also returns HTTP 200 without
-authentication. It is therefore PUBLIC. No commit from this release branch
-may be pushed there. A new or existing confirmed-private remote is required
-for upload.
+- AppLauncher may intermittently wait in startup; live wrappers use a fresh
+  top-level process and bounded retries.
+- Isaac can exit with SIGSEGV/139 after functional receipts are durably saved;
+  this is tracked separately and never used to fabricate a PASS.
+- Optimizer/replay resume is not certified. `scripts/g2/08_resume.sh` therefore
+  fails closed; use fresh bounded runs with matching source/config hashes.
+- Missing or mismatched external hashes remain fail-closed.
