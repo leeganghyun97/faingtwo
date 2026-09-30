@@ -360,6 +360,7 @@ def apply_vector_direct_pregrasp_initial_states(
     samples: Sequence[PregraspInitialState],
     env_ids: Sequence[int] | None = None,
     allow_explicit_paired_clone_duplicates: bool = False,
+    allow_explicit_diagnostic_duplicates: bool = False,
 ) -> tuple[DirectPregraspInitReceipt, ...]:
     """Apply one immutable OPEN robot/cube state per vector environment.
 
@@ -399,7 +400,9 @@ def apply_vector_direct_pregrasp_initial_states(
             sample_id: sum(sample.sample_id == sample_id for sample in selected)
             for sample_id in {sample.sample_id for sample in selected}
         }
-        if (
+        if allow_explicit_diagnostic_duplicates:
+            pass
+        elif (
             not allow_explicit_paired_clone_duplicates
             or len(selected) % 2 != 0
             or any(count != 2 for count in duplicate_counts.values())

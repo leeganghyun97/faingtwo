@@ -11,6 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = ROOT / "source/geniesim/rl/sac/stage1a_isaac_vector_smoke.py"
 RUNNER = ROOT / "scripts/run_g2_stage1a_vector_runtime.py"
 SUPERVISOR = ROOT / "scripts/diagnostics/run_g2_stage1a_current_retry_supervisor.py"
+DIRECT_INIT = (
+    ROOT
+    / "source/geniesim/rl/isaaclab/g2_policy_branch/keyboard_v3_direct_pregrasp_init.py"
+)
 
 
 VARIANTS = (
@@ -105,3 +109,11 @@ def test_current_gru_privileged_is_teacher_only_and_not_old_distillation() -> No
     assert '"student_privileged_input_count": 0' in runtime
     assert "CURRENT GRU + Privileged" in orchestrator
     assert "STATIC_FAIL_CLOSED" not in orchestrator
+
+
+def test_collision_diagnostic_duplicate_sources_are_explicitly_authorized_only() -> None:
+    runtime = RUNTIME.read_text(encoding="utf-8")
+    direct_init = DIRECT_INIT.read_text(encoding="utf-8")
+    assert "allow_explicit_diagnostic_duplicates=collision_diagnostic_allocation" in runtime
+    assert "allow_explicit_diagnostic_duplicates: bool = False" in direct_init
+    assert "if allow_explicit_diagnostic_duplicates:" in direct_init
