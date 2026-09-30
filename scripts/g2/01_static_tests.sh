@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-export PYTHONPATH="${root}/source${PYTHONPATH:+:${PYTHONPATH}}"
-python_bin="${GENIESIM_PYTHON:-${root}/.venv/bin/python}"
-[[ -x "${python_bin}" ]] || python_bin="$(command -v python3)"
+# shellcheck disable=SC1091
+source "${root}/scripts/g2/_common.sh"
+
+python_bin="${GENIESIM_PYTHON:-${G2_ISAAC_PYTHON:-${root}/.venv/bin/python}}"
+if [[ ! -x "${python_bin}" ]]; then
+  python_bin="$(command -v python3)"
+fi
+if ! PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "${python_bin}" -c 'import pytest' 2>/dev/null; then
+  echo "PYTEST_NOT_AVAILABLE:${python_bin}" >&2
+  echo "Set GENIESIM_PYTHON or GENIESIM_ISAAC_PYTHON to the prepared environment." >&2
+  exit 2
+fi
 "${root}/scripts/preflight.sh" --profile static
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 "${python_bin}" -m pytest -q \
   "${root}/tests/test_reproducibility_release.py" \
