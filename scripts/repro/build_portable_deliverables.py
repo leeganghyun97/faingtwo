@@ -27,8 +27,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 KEYBOARD_SPEC = ROOT / "configs/reproducibility/keyboard_collection_release.json"
 TRANSFER_SPEC = ROOT / "configs/reproducibility/g2_transfer_bundle.json"
+METHODS_SPEC = ROOT / "configs/reproducibility/methods_a_to_g.json"
+EXTERNAL_ASSETS = ROOT / "configs/reproducibility/external_assets.json"
 SOURCE_MANIFEST = "SOURCE_MANIFEST.json"
 BUNDLE_MANIFEST = "BUNDLE_MANIFEST.json"
+METHOD_INPUT_MANIFEST = "METHOD_A_TO_G_INPUTS.json"
 
 
 def load_object(path: Path) -> dict[str, Any]:
@@ -261,6 +264,69 @@ def _copy_entry(source: Path, target: Path, kind: str) -> None:
         raise SystemExit(f"TRANSFER_KIND_INVALID:{kind}")
 
 
+def _write_method_input_manifest(destination: Path) -> dict[str, Any]:
+    """Prove that every Method A--G runtime input is present in the bundle."""
+
+    methods = load_object(METHODS_SPEC)["methods"]
+    assets = load_object(EXTERNAL_ASSETS)["assets"]
+    method_rows: dict[str, Any] = {}
+    for method_id, method in sorted(methods.items()):
+        scopes = {"isaac_scene", "all_live_methods", f"method_{method_id}"}
+        required: list[dict[str, Any]] = []
+        for asset in assets:
+            if not scopes.intersection(set(asset["required_for"])):
+                continue
+            relative = safe_relative(str(asset.get("bundle_path", "")))
+            target = destination / relative
+            expected = asset.get("sha256")
+            exists = target.is_file() if expected else target.is_dir()
+            actual = sha256(target) if exists and expected else None
+            hash_match = None if expected is None else actual == expected
+            if not exists:
+                raise SystemExit(
+                    f"METHOD_BUNDLE_ASSET_MISSING:{method_id}:{asset['id']}:{relative}"
+                )
+            if hash_match is False:
+                raise SystemExit(
+                    f"METHOD_BUNDLE_ASSET_HASH_MISMATCH:{method_id}:{asset['id']}"
+                )
+            required.append(
+                {
+                    "asset_id": asset["id"],
+                    "artifact_type": asset.get("artifact_type", "unspecified"),
+                    "bundle_path": relative.as_posix(),
+                    "sha256": actual,
+                    "hash_verified": hash_match is True,
+                }
+            )
+        method_rows[method_id] = {
+            "name": method["name"],
+            "runtime_variant_6000": method["runtime_variant_6000"],
+            "required_asset_count": len(required),
+            "required_assets": required,
+        }
+    payload = {
+        "schema": "geniesim_stage1a_method_input_bundle_v1",
+        "methods": method_rows,
+        "all_methods_complete": all(
+            row["required_asset_count"] >= 7 for row in method_rows.values()
+        ),
+        "student_privileged_input_count": 0,
+        "notes": {
+            "keyboard_bc_dataset": "datasets/keyboard_bc_v26",
+            "reference_checkpoints": [
+                "models/fsm_advisory/checkpoint_3000.pt",
+                "models/fsm_advisory/checkpoint_15000.pt",
+            ],
+            "runtime_source": "Git commit pinned by BUNDLE_MANIFEST.json",
+        },
+    }
+    (destination / METHOD_INPUT_MANIFEST).write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return payload
+
+
 def export_transfer(args: argparse.Namespace) -> int:
     destination = args.output.expanduser().resolve()
     archive = destination.with_suffix(".tar.gz")
@@ -287,12 +353,16 @@ def export_transfer(args: argparse.Namespace) -> int:
         _copy_entry(source, target, str(entry["kind"]))
         included.append({key: entry[key] for key in ("id", "target", "required", "roles")})
 
+    method_input_manifest = _write_method_input_manifest(destination)
+
     readme = destination / "README_UPLOAD.md"
     readme.write_text(
         "# G2 Stage-1A data/model transfer bundle\n\n"
         "Upload the sibling `.tar.gz` and `.sha256` files to Google Drive. "
         "On the target machine, verify SHA-256 before extracting. This bundle "
         "contains authorized local-transfer artifacts and must not be committed to Git.\n\n"
+        f"Method A--G input coverage: `{METHOD_INPUT_MANIFEST}` "
+        f"(`all_methods_complete={str(method_input_manifest['all_methods_complete']).lower()}`).\n\n"
         f"Source: `{source_repository['url']}` branch `{source_repository['branch']}` "
         f"commit `{source_repository['commit']}`.\n\n"
         f"```bash\nsha256sum -c {archive.name}.sha256\n"

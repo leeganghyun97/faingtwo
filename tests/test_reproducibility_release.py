@@ -62,6 +62,29 @@ def test_all_method_entrypoints_dry_run() -> None:
         assert authority["teleop_translation_m_per_normalized"] == 0.0225
         assert authority["stage1a_final_xyz_max_norm_m"] == 0.0045
         assert authority["residual_effective_max_norm_m"] == 0.00045
+        expected_count = 8 if name.upper() in {"F", "G"} else 7
+        assert receipt["required_asset_count"] == expected_count
+        assert receipt["required_asset_contract_pass"] is all(
+            item["pass"] for item in receipt["required_assets"]
+        )
+        assert receipt["asset_hash_mismatches"] == [
+            item["id"]
+            for item in receipt["required_assets"]
+            if item["hash_match"] is False and item["exists"]
+        ]
+        asset_ids = {item["id"] for item in receipt["required_assets"]}
+        assert {
+            "candidate_a_usd",
+            "human_grasp_gru_checkpoint",
+            "stage1a_pregrasp_hdf5",
+            "stage1a_pregrasp_report",
+            "far_reach_bc_checkpoint",
+            "stage1a_residual_actor_checkpoint",
+            "geniesim_asset_pack",
+        } <= asset_ids
+        assert (
+            "conditional_coral_frozen_student" in asset_ids
+        ) is (name.upper() in {"F", "G"})
 
 
 def test_synthetic_dataset_fixture() -> None:
@@ -210,3 +233,24 @@ def test_open_table_clearance_is_frozen_and_in_portable_static_suite() -> None:
         in runtime_launcher
     )
     assert '"${root}/tests/test_g2_stage1a_open_table_clearance.py"' in static_suite
+
+
+def test_all_runtime_assets_declare_portable_bundle_paths() -> None:
+    assets = json.loads(
+        (ROOT / "configs/reproducibility/external_assets.json").read_text(
+            encoding="utf-8"
+        )
+    )["assets"]
+    assert assets
+    for asset in assets:
+        assert asset["artifact_type"]
+        path = Path(asset["bundle_path"])
+        assert not path.is_absolute()
+        assert ".." not in path.parts
+
+    builder = (ROOT / "scripts/repro/build_portable_deliverables.py").read_text(
+        encoding="utf-8"
+    )
+    assert "METHOD_A_TO_G_INPUTS.json" in builder
+    assert "METHOD_BUNDLE_ASSET_MISSING" in builder
+    assert "METHOD_BUNDLE_ASSET_HASH_MISMATCH" in builder

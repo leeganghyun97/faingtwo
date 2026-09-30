@@ -41,14 +41,47 @@ def digest(path: Path) -> str:
     return result.hexdigest()
 
 
-def find_asset(asset_id: str) -> tuple[Path, str | None]:
+def required_asset_receipts(method: str) -> list[dict[str, object]]:
+    """Resolve every runtime input required by a canonical A--G method.
+
+    Dry-run receipts must be as strict as the live preflight.  Previously the
+    dry route only checked the frozen student used by F/G, which could report
+    ``missing_inputs=[]`` while a shared BC policy or pregrasp dataset was
+    absent.  Keep the same ``required_for`` semantics as the live preflight and
+    hash every declared file before constructing the launch receipt.
+    """
+
+    scopes = {"isaac_scene", "all_live_methods", f"method_{method}"}
+    receipts: list[dict[str, object]] = []
     for item in load_json(ASSETS)["assets"]:
-        if item["id"] != asset_id:
+        if not scopes.intersection(set(item["required_for"])):
             continue
         configured = os.environ.get(item["environment_variable"], "")
-        path = Path(configured).expanduser() if configured else ROOT / item["legacy_relative_path"]
-        return path.resolve(), item["sha256"]
-    raise SystemExit(f"UNKNOWN_EXTERNAL_ASSET:{asset_id}")
+        path = (
+            Path(configured).expanduser()
+            if configured
+            else ROOT / item["legacy_relative_path"]
+        ).resolve()
+        expected = item.get("sha256")
+        exists = path.is_file() if expected else path.is_dir()
+        actual = digest(path) if exists and expected else None
+        hash_match = None if expected is None else bool(actual == expected)
+        receipts.append(
+            {
+                "id": item["id"],
+                "artifact_type": item.get("artifact_type", "unspecified"),
+                "bundle_path": item.get("bundle_path"),
+                "environment_variable": item["environment_variable"],
+                "path": str(path),
+                "path_source": "environment" if configured else "repository_legacy",
+                "exists": exists,
+                "expected_sha256": expected,
+                "actual_sha256": actual,
+                "hash_match": hash_match,
+                "pass": bool(exists and hash_match is not False),
+            }
+        )
+    return receipts
 
 
 def main() -> int:
@@ -67,6 +100,8 @@ def main() -> int:
 
     methods = load_json(CONFIG)["methods"]
     method = methods[args.method]
+    asset_receipts = required_asset_receipts(args.method)
+    assets_by_id = {str(item["id"]): item for item in asset_receipts}
     training_authority = load_json(TRAINING_AUTHORITY)
     action_authority = training_authority["action_contract"]
     robot_authority = training_authority["robot_description"]
@@ -102,7 +137,9 @@ def main() -> int:
     student_path: Path | None = None
     expected_student_hash: str | None = None
     if advisory:
-        student_path, expected_student_hash = find_asset("conditional_coral_frozen_student")
+        student = assets_by_id["conditional_coral_frozen_student"]
+        student_path = Path(str(student["path"]))
+        expected_student_hash = str(student["expected_sha256"])
         command.extend([
             "--frozen-student-advisory-checkpoint", str(student_path),
             "--frozen-student-advisory-sha256", str(expected_student_hash),
@@ -113,12 +150,16 @@ def main() -> int:
         for path in (isaac_python, PREFLIGHT, SUPERVISOR, RUNNER, TRAINING_AUTHORITY)
         if not path.is_file()
     ]
-    hash_mismatch = False
-    if advisory and student_path is not None:
-        if not student_path.is_file():
-            missing.append(str(student_path))
-        elif expected_student_hash is not None:
-            hash_mismatch = digest(student_path) != expected_student_hash
+    missing.extend(
+        str(item["path"]) for item in asset_receipts if not bool(item["exists"])
+    )
+    missing = sorted(set(missing))
+    hash_mismatches = [
+        str(item["id"])
+        for item in asset_receipts
+        if bool(item["exists"]) and item["hash_match"] is False
+    ]
+    hash_mismatch = bool(hash_mismatches)
 
     receipt = {
         "schema": "geniesim_method_launch_v2",
@@ -135,6 +176,12 @@ def main() -> int:
         "student_advisory": advisory,
         "missing_inputs": missing,
         "checkpoint_hash_mismatch": hash_mismatch,
+        "asset_hash_mismatches": hash_mismatches,
+        "required_asset_count": len(asset_receipts),
+        "required_asset_contract_pass": all(
+            bool(item["pass"]) for item in asset_receipts
+        ),
+        "required_assets": asset_receipts,
         "training_authority": {
             "manifest": str(TRAINING_AUTHORITY.relative_to(ROOT)),
             "manifest_sha256": digest(TRAINING_AUTHORITY),

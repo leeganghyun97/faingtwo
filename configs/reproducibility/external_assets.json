@@ -1,6 +1,8 @@
 {
   "assets": [
     {
+      "artifact_type": "candidate_a_usd",
+      "bundle_path": "runtime/minimal_bundle/artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg/robot_fix.usda",
       "environment_variable": "GENIESIM_CANDIDATE_A_USD",
       "id": "candidate_a_usd",
       "legacy_relative_path": "artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg/robot_fix.usda",
@@ -18,6 +20,8 @@
       "sha256": "d1ffc70c1e7ee628348742e6f2ed824e15cbeb5e790f06400b8b28d7abe03a28"
     },
     {
+      "artifact_type": "policy_checkpoint",
+      "bundle_path": "runtime/minimal_bundle/artifacts/external/BEST_HUMAN_GRASP_GRU_BC.pt",
       "environment_variable": "GENIESIM_GRU_CHECKPOINT",
       "id": "human_grasp_gru_checkpoint",
       "legacy_relative_path": "artifacts/g2_keyboard_v3_recovery_20260924_v1/GRU_CAUSAL_CLOSE_EDGE_GPU_3K_WANDB_V1/BEST_HUMAN_GRASP_GRU_BC.pt",
@@ -30,6 +34,8 @@
       "sha256": "fdec68aef317e7cd1758bf4b48f4fe20207353ebd51d8d20e4378a0d2324d510"
     },
     {
+      "artifact_type": "initial_state_dataset",
+      "bundle_path": "runtime/minimal_bundle/artifacts/external/stage1a_pregrasp_initial_states.hdf5",
       "environment_variable": "GENIESIM_PREGRASP_HDF5",
       "id": "stage1a_pregrasp_hdf5",
       "legacy_relative_path": "artifacts/external/stage1a_pregrasp_initial_states.hdf5",
@@ -40,6 +46,8 @@
       "sha256": "5c18ac128ff5561788016fd1c6686e78f290547be0c1c261f96fddfaa87604e3"
     },
     {
+      "artifact_type": "dataset_report",
+      "bundle_path": "runtime/minimal_bundle/artifacts/external/stage1a_pregrasp_report.json",
       "environment_variable": "GENIESIM_PREGRASP_REPORT",
       "id": "stage1a_pregrasp_report",
       "legacy_relative_path": "artifacts/external/stage1a_pregrasp_report.json",
@@ -50,6 +58,8 @@
       "sha256": "36ba592518a6a25e1dc8f9e41b324ac1f3fca21820d735e75e9d7efabc57451d"
     },
     {
+      "artifact_type": "student_checkpoint",
+      "bundle_path": "models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt",
       "environment_variable": "GENIESIM_FROZEN_STUDENT_CHECKPOINT",
       "id": "conditional_coral_frozen_student",
       "legacy_relative_path": "artifacts/external/CONDITIONAL_CORAL_FROZEN_STUDENT.pt",
@@ -61,6 +71,8 @@
       "sha256": "1834e70db6fc3a56e77350248961c24d3606dc1ce9385ead462ee5349d31bff2"
     },
     {
+      "artifact_type": "policy_checkpoint",
+      "bundle_path": "runtime/minimal_bundle/artifacts/external/far_reach_bc_best.pt",
       "environment_variable": "GENIESIM_FAR_REACH_BC_CHECKPOINT",
       "id": "far_reach_bc_checkpoint",
       "legacy_relative_path": "artifacts/external/far_reach_bc_best.pt",
@@ -72,6 +84,8 @@
       "sha256": "bcb1b7ed0455453c38762d9da00f9db30b5e811ddff44fe1fdbc0957588a14bc"
     },
     {
+      "artifact_type": "policy_checkpoint",
+      "bundle_path": "runtime/minimal_bundle/artifacts/external/stage1a_residual_actor.pt",
       "environment_variable": "GENIESIM_RESIDUAL_ACTOR_CHECKPOINT",
       "id": "stage1a_residual_actor_checkpoint",
       "legacy_relative_path": "artifacts/g2_candidate_a_close_sac_exception_safe_qualification_20260925_v5/checkpoints/stage1a_residual_actor.pt",
@@ -82,6 +96,8 @@
       "sha256": "bbc32ed96704e80058b5d9791194dca31d5862019a96edcb9beef48d2f85959d"
     },
     {
+      "artifact_type": "asset_directory",
+      "bundle_path": "runtime/minimal_bundle/source/geniesim/assets",
       "environment_variable": "GENIESIM_ASSET_ROOT",
       "id": "geniesim_asset_pack",
       "legacy_relative_path": "source/geniesim/assets",
