@@ -159,7 +159,7 @@ KEYBOARD_V3_BRANCH_SOURCE_HASHES = {
     "source/geniesim/rl/isaaclab/g2_policy_branch/production_metric_adapter.py":
         "447f63f9fbbe053e0bea8f3147b0bba14b6a2433e6190a6224d7964c4b48b7f7",
     "configs/g2_policy_branch/keyboard_collection_v3.json":
-        "c1a4bd6ee2968e487a2c706c24e673e8bf34b1a51ce2e9fc5404389de6c62fd3",
+        "9bed6e1114341cf450359330c67fa2ec56c16aa2ad7fb4103419f7670de73afe",
     "scripts/prepare_g2_keyboard_v3_collection.py":
         "ea30a0fb09f49401695a2d33f74015a2c074e044f4cdbeeb40c2d2b6df790329",
     "scripts/run_g2_keyboard_v3_terminal_collection.sh":

@@ -73,7 +73,7 @@
       "type": "file"
     },
     {
-      "expected_sha256": "c1a4bd6ee2968e487a2c706c24e673e8bf34b1a51ce2e9fc5404389de6c62fd3",
+      "expected_sha256": "9bed6e1114341cf450359330c67fa2ec56c16aa2ad7fb4103419f7670de73afe",
       "source": "configs/g2_policy_branch/keyboard_collection_v3.json",
       "target": "configs/g2_policy_branch/keyboard_collection_v3.json",
       "type": "file"
