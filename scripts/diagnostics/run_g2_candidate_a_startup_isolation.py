@@ -14,6 +14,7 @@ controller.
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict, is_dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -61,6 +62,20 @@ def _atomic_json(path: Path, value: dict[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def _jsonable(value: Any) -> Any:
+    """Convert diagnostic receipts without changing their runtime authority."""
+
+    if is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(asdict(value))
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
 class _Journal:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -82,7 +97,7 @@ class _Journal:
             "cwd": os.getcwd(),
             "python": sys.executable,
             "argv": sys.argv,
-            "detail": detail,
+            "detail": _jsonable(detail),
         }
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row, sort_keys=True, allow_nan=False) + "\n")

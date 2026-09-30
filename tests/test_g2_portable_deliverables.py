@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import runpy
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,3 +88,21 @@ def test_live_wrappers_bind_the_current_clone_source_tree() -> None:
     assert 'pip install -e "${root}/source"' in installer
     assert 'source_root = str(ROOT / "source")' in launcher
     assert "choices=(10, 25)" in launcher
+
+
+def test_startup_receipt_serializer_accepts_frozen_dataclasses() -> None:
+    module = runpy.run_path(
+        str(ROOT / "scripts/diagnostics/run_g2_candidate_a_startup_isolation.py"),
+        run_name="g2_startup_isolation_test",
+    )
+
+    from dataclasses import dataclass
+
+    @dataclass(frozen=True)
+    class Receipt:
+        path: Path
+        ready: bool
+
+    assert module["_jsonable"]({"receipt": Receipt(Path("asset.usd"), True)}) == {
+        "receipt": {"path": "asset.usd", "ready": True}
+    }
