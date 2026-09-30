@@ -152,6 +152,19 @@ def test_minimal_training_bundle_and_route_are_bounded() -> None:
     assert "--runtime-variant V3_BASELINE" in launcher
     assert "--wandb-mode" in launcher
 
+    installer = (ROOT / "scripts/repro/minimal_training_bundle.py").read_text(
+        encoding="utf-8"
+    )
+    assert "--frozen-student-checkpoint" in installer
+    assert "FROZEN_STUDENT_CHECKPOINT_HASH_MISMATCH" in installer
+
+    guide = (ROOT / "README_G2_STAGE1A.md").read_text(encoding="utf-8")
+    install_section = guide.split("## 5. 새 PC 설치", 1)[1].split(
+        "## 6. 실행 순서", 1
+    )[0]
+    assert "--frozen-student-checkpoint" in install_section
+    assert "cp .env.example .env" not in install_section
+
 
 def test_all_live_methods_require_actual_runtime_initializers() -> None:
     assets = json.loads(

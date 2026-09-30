@@ -71,24 +71,29 @@ git checkout stage1a-portable-training
 # Isaac Sim 6.0.1 + Isaac Lab 6.1.14는 별도로 설치한 뒤:
 python3 -m venv .venv
 .venv/bin/pip install -r requirements-lock.txt
-cp .env.example .env
-${EDITOR:-nano} .env
 
 # Google Drive에서 받은 archive를 검증/해제:
-sha256sum -c g2-stage1a-data-models.tar.gz.sha256
-tar -xzf g2-stage1a-data-models.tar.gz
+sha256sum -c g2-stage1a-data-models-20260930-r7.tar.gz.sha256
+tar -xzf g2-stage1a-data-models-20260930-r7.tar.gz
 python3 scripts/repro/minimal_training_bundle.py verify \
-  --bundle /path/to/g2-stage1a-data-models/runtime/minimal_bundle
+  --bundle /path/to/g2-stage1a-data-models-20260930-r7/runtime/minimal_bundle
 python3 scripts/repro/minimal_training_bundle.py install \
-  --bundle /path/to/g2-stage1a-data-models/runtime/minimal_bundle \
+  --bundle /path/to/g2-stage1a-data-models-20260930-r7/runtime/minimal_bundle \
+  --frozen-student-checkpoint \
+    /path/to/g2-stage1a-data-models-20260930-r7/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \
   --write-env --isaac-python /path/to/isaac/python \
   --output-root /path/to/output
+
+# installer가 생성한 ignored .env를 필요에 맞게 검토한다.
+${EDITOR:-nano} .env
 
 # Isaac Python에 최소 dependency와 현재 clone의 GenieSim source를 연결:
 ./scripts/install_minimal_isaac_deps.sh
 ```
 
-`.env`에는 최소 `GENIESIM_ISAAC_PYTHON`, `GENIESIM_ASSET_ROOT`,
+`--write-env`는 기존 `.env`를 덮어쓰지 않는다. 수동 설정을 선호하면 대신
+`.env.example`을 `.env`로 복사해 편집한다. `.env`에는 최소
+`GENIESIM_ISAAC_PYTHON`, `GENIESIM_ASSET_ROOT`,
 `GENIESIM_CANDIDATE_A_USD`, `GENIESIM_PREGRASP_HDF5`, BC/GRU/student/residual
 checkpoint 경로를 설정한다. 실제 W&B key는 파일에 넣지 말고 `wandb login`을
 사용한다.

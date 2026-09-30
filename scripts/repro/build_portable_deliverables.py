@@ -295,9 +295,16 @@ def export_transfer(args: argparse.Namespace) -> int:
         "contains authorized local-transfer artifacts and must not be committed to Git.\n\n"
         f"Source: `{source_repository['url']}` branch `{source_repository['branch']}` "
         f"commit `{source_repository['commit']}`.\n\n"
-        "```bash\nsha256sum -c g2-stage1a-data-models.tar.gz.sha256\n"
-        "tar -xzf g2-stage1a-data-models.tar.gz\n"
-        "python3 scripts/repro/minimal_training_bundle.py verify --bundle <extracted>/runtime/minimal_bundle\n```\n",
+        f"```bash\nsha256sum -c {archive.name}.sha256\n"
+        f"tar -xzf {archive.name}\n"
+        "python3 scripts/repro/minimal_training_bundle.py verify --bundle "
+        f"{destination.name}/runtime/minimal_bundle\n"
+        "python3 scripts/repro/minimal_training_bundle.py install --bundle "
+        f"{destination.name}/runtime/minimal_bundle \\\n"
+        "  --frozen-student-checkpoint "
+        f"{destination.name}/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \\\n"
+        "  --write-env --isaac-python /path/to/isaac/python "
+        "--output-root /path/to/output\n```\n",
         encoding="utf-8",
     )
     rows = file_rows(destination, exclude={BUNDLE_MANIFEST, "SHA256SUMS"})

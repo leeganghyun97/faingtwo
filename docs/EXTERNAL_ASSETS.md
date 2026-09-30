@@ -64,6 +64,7 @@ directory and install it into the clone. Every file is verified before copy;
 ```bash
 python3 scripts/repro/minimal_training_bundle.py install \
   --bundle /path/to/geniesim_stage1a_minimal_bundle_v2 \
+  --frozen-student-checkpoint /path/to/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \
   --write-env \
   --isaac-python /path/to/isaac/python \
   --output-root /path/to/output
@@ -71,6 +72,10 @@ python3 scripts/repro/minimal_training_bundle.py install \
 ./scripts/preflight.sh --profile live --method A
 ./scripts/run_minimal_stage1a_training.sh
 ```
+
+`--write-env` refuses to overwrite an existing `.env`. Run it before creating
+one manually. The frozen-student option is required for Method F/G and is
+verified against `configs/reproducibility/external_assets.json`.
 
 The bundle excludes Isaac, is marked `LOCAL_AUTHORIZED_TRANSFER_ONLY`, and
 must not be committed or redistributed without the asset owner's permission.
