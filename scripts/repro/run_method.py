@@ -26,6 +26,35 @@ SUPERVISOR = ROOT / "scripts/diagnostics/run_g2_stage1a_current_retry_supervisor
 RUNNER = ROOT / "scripts/run_g2_stage1a_vector_runtime.py"
 
 
+def load_repository_environment() -> None:
+    """Load the generated portable ``.env`` for direct Python invocations.
+
+    The shell entrypoints already source this file.  Loading it here as well
+    keeps ``python scripts/repro/run_method.py`` equivalent to
+    ``scripts/run_method_<method>.sh`` and prevents a clean clone from falling
+    back to historical in-repository checkpoint paths.  Explicitly exported
+    process variables remain authoritative.
+    """
+
+    path = ROOT / ".env"
+    if not path.is_file():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key.startswith("export "):
+            key = key.removeprefix("export ").strip()
+        if not key:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        os.environ.setdefault(key, value)
+
+
 def load_json(path: Path) -> dict:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -85,6 +114,7 @@ def required_asset_receipts(method: str) -> list[dict[str, object]]:
 
 
 def main() -> int:
+    load_repository_environment()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--method", choices=tuple("ABCDEFG"), required=True)
     parser.add_argument("--accepted-transitions", type=int, choices=(6000, 7500), default=6000)

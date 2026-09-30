@@ -23,6 +23,15 @@ def _portable_builder():
     return module
 
 
+def _method_launcher():
+    path = ROOT / "scripts/repro/run_method.py"
+    spec = importlib.util.spec_from_file_location("method_launcher_test", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def test_method_matrix_is_exactly_a_to_g() -> None:
     payload = json.loads(
         (ROOT / "configs/reproducibility/methods_a_to_g.json").read_text(encoding="utf-8")
@@ -85,6 +94,23 @@ def test_all_method_entrypoints_dry_run() -> None:
         assert (
             "conditional_coral_frozen_student" in asset_ids
         ) is (name.upper() in {"F", "G"})
+
+
+def test_direct_method_launcher_loads_portable_environment(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    launcher = _method_launcher()
+    environment_key = "GENIESIM_TEST_PORTABLE_ENV_RECEIPT"
+    monkeypatch.delenv(environment_key, raising=False)
+    monkeypatch.setattr(launcher, "ROOT", tmp_path)
+    (tmp_path / ".env").write_text(
+        f"# generated receipt\n{environment_key}=portable-value\n",
+        encoding="utf-8",
+    )
+
+    launcher.load_repository_environment()
+
+    assert launcher.os.environ[environment_key] == "portable-value"
 
 
 def test_synthetic_dataset_fixture() -> None:
