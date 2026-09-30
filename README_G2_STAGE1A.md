@@ -73,14 +73,14 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements-lock.txt
 
 # Google Drive에서 받은 archive를 검증/해제:
-sha256sum -c g2-stage1a-data-models-20260930-r7.tar.gz.sha256
-tar -xzf g2-stage1a-data-models-20260930-r7.tar.gz
+sha256sum -c g2-stage1a-data-models-20260930-r8.tar.gz.sha256
+tar -xzf g2-stage1a-data-models-20260930-r8.tar.gz
 python3 scripts/repro/minimal_training_bundle.py verify \
-  --bundle /path/to/g2-stage1a-data-models-20260930-r7/runtime/minimal_bundle
+  --bundle /path/to/g2-stage1a-data-models-20260930-r8/runtime/minimal_bundle
 python3 scripts/repro/minimal_training_bundle.py install \
-  --bundle /path/to/g2-stage1a-data-models-20260930-r7/runtime/minimal_bundle \
+  --bundle /path/to/g2-stage1a-data-models-20260930-r8/runtime/minimal_bundle \
   --frozen-student-checkpoint \
-    /path/to/g2-stage1a-data-models-20260930-r7/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \
+    /path/to/g2-stage1a-data-models-20260930-r8/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \
   --write-env --isaac-python /path/to/isaac/python \
   --output-root /path/to/output
 

@@ -297,12 +297,15 @@ def export_transfer(args: argparse.Namespace) -> int:
         f"commit `{source_repository['commit']}`.\n\n"
         f"```bash\nsha256sum -c {archive.name}.sha256\n"
         f"tar -xzf {archive.name}\n"
+        f"export GENIESIM_BUNDLE_ROOT=\"$PWD/{destination.name}\"\n"
+        "export GENIESIM_REPO_ROOT=/path/to/genie_sim\n"
+        "cd \"$GENIESIM_REPO_ROOT\"\n"
         "python3 scripts/repro/minimal_training_bundle.py verify --bundle "
-        f"{destination.name}/runtime/minimal_bundle\n"
+        "\"$GENIESIM_BUNDLE_ROOT/runtime/minimal_bundle\"\n"
         "python3 scripts/repro/minimal_training_bundle.py install --bundle "
-        f"{destination.name}/runtime/minimal_bundle \\\n"
+        "\"$GENIESIM_BUNDLE_ROOT/runtime/minimal_bundle\" \\\n"
         "  --frozen-student-checkpoint "
-        f"{destination.name}/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt \\\n"
+        "\"$GENIESIM_BUNDLE_ROOT/models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt\" \\\n"
         "  --write-env --isaac-python /path/to/isaac/python "
         "--output-root /path/to/output\n```\n",
         encoding="utf-8",

@@ -158,6 +158,12 @@ def test_minimal_training_bundle_and_route_are_bounded() -> None:
     assert "--frozen-student-checkpoint" in installer
     assert "FROZEN_STUDENT_CHECKPOINT_HASH_MISMATCH" in installer
 
+    deliverable_builder = (
+        ROOT / "scripts/repro/build_portable_deliverables.py"
+    ).read_text(encoding="utf-8")
+    assert "GENIESIM_BUNDLE_ROOT" in deliverable_builder
+    assert "GENIESIM_REPO_ROOT" in deliverable_builder
+
     guide = (ROOT / "README_G2_STAGE1A.md").read_text(encoding="utf-8")
     install_section = guide.split("## 5. 새 PC 설치", 1)[1].split(
         "## 6. 실행 순서", 1
