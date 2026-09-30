@@ -22,12 +22,18 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PYTHON = Path(os.environ.get("GENIESIM_ISAAC_PYTHON", sys.executable))
 DEFAULT_RUNNER = ROOT / "scripts/run_g2_stage1a_vector_runtime.py"
+EXTERNAL_ASSET_MANIFEST = ROOT / "configs/reproducibility/external_assets.json"
+REQUIRED_POLICY_CHECKPOINT_IDS = (
+    "human_grasp_gru_checkpoint",
+    "far_reach_bc_checkpoint",
+    "stage1a_residual_actor_checkpoint",
+)
 SCHEMA = "g2_stage1a_current_v3_her_force_fresh_startup_supervisor_v1"
 ONLINE_WANDB_MODE_ARGS = (
         "--wandb-mode",
@@ -107,7 +113,83 @@ def _last_line(path: Path) -> str | None:
     return lines[-1] if lines else None
 
 
-def _relevant_environment() -> dict[str, str | None]:
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _resolve_required_policy_checkpoints() -> tuple[dict[str, str], dict[str, Any]]:
+    """Resolve and hash all policy checkpoints before Isaac is launched.
+
+    A missing external checkpoint is a deterministic input-contract failure,
+    not an intermittent AppLauncher failure.  Resolve it in the supervisor so
+    a run cannot spend GPU startup/physics time and then fail during policy
+    construction, and so every fresh child inherits the exact same verified
+    paths even when only repository-local legacy defaults were configured.
+    """
+
+    try:
+        manifest = json.loads(EXTERNAL_ASSET_MANIFEST.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SystemExit("POLICY_CHECKPOINT_MANIFEST_UNREADABLE") from error
+    assets = {
+        item.get("id"): item
+        for item in manifest.get("assets", [])
+        if isinstance(item, dict)
+    }
+    environment: dict[str, str] = {}
+    receipt: dict[str, Any] = {
+        "manifest": str(EXTERNAL_ASSET_MANIFEST),
+        "manifest_sha256": _sha256(EXTERNAL_ASSET_MANIFEST),
+        "checkpoints": {},
+    }
+    for asset_id in REQUIRED_POLICY_CHECKPOINT_IDS:
+        asset = assets.get(asset_id)
+        if not isinstance(asset, dict):
+            raise SystemExit(f"POLICY_CHECKPOINT_ASSET_UNDECLARED:{asset_id}")
+        environment_variable = asset.get("environment_variable")
+        expected_sha256 = asset.get("sha256")
+        legacy_relative_path = asset.get("legacy_relative_path")
+        if (
+            not isinstance(environment_variable, str)
+            or not isinstance(expected_sha256, str)
+            or len(expected_sha256) != 64
+            or not isinstance(legacy_relative_path, str)
+        ):
+            raise SystemExit(f"POLICY_CHECKPOINT_ASSET_CONTRACT_INVALID:{asset_id}")
+        configured = os.environ.get(environment_variable)
+        path = (
+            Path(configured).expanduser()
+            if configured
+            else ROOT / legacy_relative_path
+        ).resolve()
+        if not path.is_file():
+            raise SystemExit(
+                f"POLICY_CHECKPOINT_MISSING:{asset_id}:{environment_variable}:{path}"
+            )
+        actual_sha256 = _sha256(path)
+        if actual_sha256 != expected_sha256:
+            raise SystemExit(
+                f"POLICY_CHECKPOINT_HASH_MISMATCH:{asset_id}:{path}"
+            )
+        environment[environment_variable] = str(path)
+        receipt["checkpoints"][asset_id] = {
+            "path": str(path),
+            "sha256": actual_sha256,
+            "environment_variable": environment_variable,
+            "path_source": "environment" if configured else "repository_legacy",
+        }
+    receipt["pass"] = True
+    return environment, receipt
+
+
+def _relevant_environment(
+    environment: Mapping[str, str] | None = None,
+) -> dict[str, str | None]:
+    source = os.environ if environment is None else environment
     names = (
         "PATH",
         "PYTHONPATH",
@@ -120,12 +202,15 @@ def _relevant_environment() -> dict[str, str | None]:
         "CUDA_VISIBLE_DEVICES",
         "NVIDIA_VISIBLE_DEVICES",
         "OMNI_KIT_ACCEPT_EULA",
+        "GENIESIM_GRU_CHECKPOINT",
+        "GENIESIM_FAR_REACH_BC_CHECKPOINT",
+        "GENIESIM_RESIDUAL_ACTOR_CHECKPOINT",
     )
-    values: dict[str, str | None] = {name: os.environ.get(name) for name in names}
+    values: dict[str, str | None] = {name: source.get(name) for name in names}
     values.update(
         {
             name: "<present>"
-            for name in sorted(os.environ)
+            for name in sorted(source)
             if name.startswith(("ISAAC_", "OMNI_")) and name not in values
         }
     )
@@ -212,6 +297,7 @@ def _write_progress(
             "status": status,
             "startup_attempts": attempts,
             "startup_attempt_count": len(attempts),
+            "policy_checkpoint_authority": args.policy_checkpoint_authority,
             "privileged_used": "PRIVILEGED" in args.runtime_variant,
             # This supervisor never chains a bounded result into an automatic
             # long run.  Keep the legacy explicit receipt alongside the more
@@ -266,6 +352,13 @@ def _build_command(*, args: argparse.Namespace, attempt_root: Path, attempt: int
                 str(args.frozen_student_advisory_sha256),
             )
         )
+    if args.forbidden_collision_diagnostic_source_rows is not None:
+        command.extend(
+            (
+                "--forbidden-collision-diagnostic-source-rows",
+                args.forbidden_collision_diagnostic_source_rows,
+            )
+        )
     return command
 
 
@@ -286,7 +379,8 @@ def _run_attempt(*, args: argparse.Namespace, attempt: int, root: Path) -> dict[
     environment = os.environ.copy()
     environment["PYTHONPATH"] = str(ROOT / "source")
     environment["PYTHONUNBUFFERED"] = "1"
-    relevant_env = _relevant_environment()
+    environment.update(args.policy_checkpoint_environment)
+    relevant_env = _relevant_environment(environment)
     receipt: dict[str, Any] = {
         "attempt": attempt,
         "attempt_root": str(attempt_root),
@@ -295,6 +389,7 @@ def _run_attempt(*, args: argparse.Namespace, attempt: int, root: Path) -> dict[
         "python": str(args.python),
         "environment_fingerprint": _environment_fingerprint(relevant_env),
         "relevant_environment": relevant_env,
+        "policy_checkpoint_authority": args.policy_checkpoint_authority,
         "accepted_transitions": 0,
         "transition_zero_invalid": False,
         "privileged_used": False,
@@ -389,6 +484,7 @@ def _run_attempt(*, args: argparse.Namespace, attempt: int, root: Path) -> dict[
         receipt["last_launch_stage"] = ((_read_json(marker) or {}).get("stage"))
         receipt["physics_smoke"] = _read_json(smoke_report)
         runtime_report = _read_json(attempt_root / "runtime" / "STAGE1A_VECTOR_REPORT.json")
+        fail_closed_report = _read_json(attempt_root / "runtime" / "FAIL_CLOSED.json")
         receipt["runtime_report_path"] = (
             str(attempt_root / "runtime" / "STAGE1A_VECTOR_REPORT.json")
             if runtime_report is not None
@@ -399,6 +495,13 @@ def _run_attempt(*, args: argparse.Namespace, attempt: int, root: Path) -> dict[
                 runtime_report.get("accepted_transitions", 0)
             )
             receipt["wandb"] = runtime_report.get("wandb")
+        elif fail_closed_report is not None:
+            # Preserve partial progress and the primary fail-closed reason
+            # even when Isaac's known shutdown crash prevents a final report.
+            receipt["accepted_transitions"] = int(
+                fail_closed_report.get("accepted_transitions", 0)
+            )
+            receipt["fail_closed"] = fail_closed_report
         completed_report = bool(
             runtime_report is not None
             and runtime_report.get("TRAINING_COMPLETED") is True
@@ -413,7 +516,7 @@ def _run_attempt(*, args: argparse.Namespace, attempt: int, root: Path) -> dict[
             receipt["known_shutdown_sigsegv_separate"] = bool(
                 receipt.get("returncode") == -11
             )
-        elif receipt.get("physics_smoke", {}).get("PHYSICS_SMOKE") != "PASS":
+        elif (receipt.get("physics_smoke") or {}).get("PHYSICS_SMOKE") != "PASS":
             receipt.setdefault("failure_class", "PHYSICS_SMOKE_FAIL")
         elif receipt.get("returncode") != 0:
             receipt.setdefault("failure_class", "POST_STARTUP_RUNTIME_FAILURE")
@@ -493,15 +596,18 @@ def main() -> int:
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--frozen-student-advisory-checkpoint", type=Path)
     parser.add_argument("--frozen-student-advisory-sha256")
+    parser.add_argument("--forbidden-collision-diagnostic-source-rows")
     args = parser.parse_args()
     if not args.python.is_file() or not args.runner.is_file():
         raise SystemExit("SUPERVISOR_PYTHON_OR_RUNNER_MISSING")
     if args.preflight_only and (
         args.runtime_variant not in RESET_FIXED_25ENV_7P5K_VARIANTS
-        or args.num_envs != 25
+        or args.num_envs not in (10, 25)
         or args.accepted_transitions != 100
     ):
-        raise SystemExit("RESET_FIXED_PREFLIGHT_REQUIRES_25ENVS_AND_100_TRANSITIONS")
+        raise SystemExit(
+            "RESET_FIXED_PREFLIGHT_REQUIRES_10_OR_25_ENVS_AND_100_TRANSITIONS"
+        )
     advisory_variant = args.runtime_variant in (
         "V3_1_LATERAL_OFF_FSM_ADVISORY_HER_FORCE_FAIR_6K",
         RESET_FIXED_25ENV_7P5K_ADVISORY_VARIANT,
@@ -511,15 +617,18 @@ def main() -> int:
     )
     if args.runtime_variant in RESET_FIXED_25ENV_7P5K_VARIANTS:
         expected_target = 100 if args.preflight_only else 7500
-        if args.num_envs != 25 or args.accepted_transitions != expected_target:
+        expected_envs = (10, 25) if args.preflight_only else (25,)
+        if args.num_envs not in expected_envs or args.accepted_transitions != expected_target:
             if args.runtime_variant == RESET_FIXED_25ENV_7P5K_ADVISORY_VARIANT:
                 raise SystemExit(
                     "RESET_FIXED_7P5K_ADVISORY_REQUIRES_NUM_ENVS_25_AND_TARGET_7500"
                 )
             raise SystemExit("RESET_FIXED_7P5K_REQUIRES_NUM_ENVS_25_AND_TARGET_7500")
     elif args.runtime_variant in RESET_FIXED_25ENV_6K_VARIANTS:
-        if args.num_envs != 25 or args.accepted_transitions != 6000:
-            raise SystemExit("RESET_FIXED_6K_REQUIRES_NUM_ENVS_25_AND_TARGET_6000")
+        if args.num_envs not in (10, 25) or args.accepted_transitions != 6000:
+            raise SystemExit(
+                "RESET_FIXED_6K_REQUIRES_NUM_ENVS_10_OR_25_AND_TARGET_6000"
+            )
     elif args.num_envs != 10:
         raise SystemExit("SUPERVISOR_NUM_ENVS_25_RESERVED_FOR_RESET_FIXED_7P5K")
     if advisory_variant and (
@@ -544,6 +653,10 @@ def main() -> int:
         or args.frozen_student_advisory_sha256 is not None
     ):
         raise SystemExit("FROZEN_STUDENT_ADVISORY_ARGS_RESERVED_FOR_ADVISORY_VARIANT")
+    (
+        args.policy_checkpoint_environment,
+        args.policy_checkpoint_authority,
+    ) = _resolve_required_policy_checkpoints()
     if args.output_root.exists():
         raise SystemExit("SUPERVISOR_OUTPUT_REFUSES_OVERWRITE")
     args.output_root.mkdir(parents=True, exist_ok=False)
