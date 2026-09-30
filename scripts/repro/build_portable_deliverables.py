@@ -109,7 +109,7 @@ def source_repository_receipt() -> dict[str, str]:
     }
 
 
-KEYBOARD_README = """# G2 Keyboard-v3 collection (ROS2-free source release)
+KEYBOARD_README = """# FainGTwo G2 Keyboard-v3 collection (ROS2-free source release)
 
 This repository contains the simulator-only G2 Keyboard-v3 collection and
 validation path exported from Genie Sim. ROS2 workspaces, native teleoperation
