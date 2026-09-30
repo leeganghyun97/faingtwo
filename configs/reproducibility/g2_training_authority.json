@@ -1,0 +1,202 @@
+{
+  "action_contract": {
+    "elbow_policy": "NON_POLICY_FOR_STAGE1A",
+    "frame": "robot_root",
+    "orientation_policy": "FIXED",
+    "residual_actor_action_order": [
+      "dx_residual",
+      "dy_residual",
+      "dz_residual"
+    ],
+    "residual_alpha": 0.1,
+    "residual_effective_max_norm_m": 0.00045,
+    "residual_has_gripper_authority": false,
+    "residual_raw_max_norm_m": 0.0045,
+    "rotation_unit": "rad",
+    "stage1a_bound_behavior": "REJECT_NO_CLIP",
+    "stage1a_final_xyz_max_norm_m": 0.0045,
+    "stage1a_policy_action_order": [
+      "dx",
+      "dy",
+      "dz",
+      "gripper"
+    ],
+    "teleop_physical_action_order": [
+      "dx",
+      "dy",
+      "dz",
+      "rx",
+      "ry",
+      "rz",
+      "elbow_nullspace",
+      "gripper"
+    ],
+    "teleop_rotation_rad_per_normalized": 0.28125,
+    "teleop_translation_m_per_normalized": 0.0225,
+    "terminal_default_translation_step_m": 0.001,
+    "terminal_maximum_translation_step_m": 0.0045,
+    "translation_unit": "m"
+  },
+  "authority_status": "FROZEN_FOR_STAGE1A_REPRODUCIBILITY",
+  "grasp_contract": {
+    "canonical_open_master_target_rad": 0.7853981633974483,
+    "grasp_success": "STABLE_BILATERAL_PRIMARY_PAD_CONTACT_10_CONTROL_STEPS",
+    "local_grasp_band_m": [
+      0.015,
+      0.022
+    ]
+  },
+  "local_files": [
+    {
+      "path": "source/data_collection/config/robot_cfg/G2/G2_omnipicker_fixed_dual.urdf",
+      "role": "LATEST_G2_TRAINING_AND_CUROBO_KINEMATIC_URDF",
+      "sha256": "a5efa8eba603ee259ef502b2b371875764ecbf161776a46559fce654ada9af09"
+    },
+    {
+      "path": "source/data_collection/config/robot_cfg/G2/G2_omnipicker_fixed_left.yaml",
+      "role": "G2_LEFT_ARM_DESCRIPTION_CONFIG",
+      "sha256": "f4a549bc197a56a316d69556f298bc1c1cf4b9b264c58b7ec603d5a49ff10944"
+    },
+    {
+      "path": "source/data_collection/config/robot_cfg/G2/G2_omnipicker_fixed_right.yaml",
+      "role": "G2_RIGHT_ARM_DESCRIPTION_CONFIG",
+      "sha256": "db6b60014475049d69d0206379e15b6676a6ed62c839c56dc948d1929d578cc6"
+    },
+    {
+      "path": "source/data_collection/config/robot_cfg/G2/joint_index.json",
+      "role": "G2_JOINT_INDEX_AUTHORITY",
+      "sha256": "655b6445555ce1d2d4cf1ccb3f665d0683caa9abf311c51f49b9b1cf422ad91a"
+    },
+    {
+      "path": "source/data_collection/config/robot_cfg/G2_omnipicker_fixed_dual.json",
+      "role": "G2_DATA_COLLECTION_ROBOT_CONFIG",
+      "sha256": "9f00bdab15aa013d3b28bab6492a9b2f4768d9cc89afa56765deaf4c3856b219"
+    },
+    {
+      "path": "source/data_collection/config/curobo/configs/robot/G2_omnipicker_fixed_dual.yml",
+      "role": "G2_CUROBO_COLLISION_AND_KINEMATICS_CONFIG",
+      "sha256": "92e8d91c962748818320b34141b023a377c8221010723cca14dd1088781c349a"
+    },
+    {
+      "path": "source/teleop/app/share/genie_robot_description/urdf/G2/G2.urdf",
+      "role": "G2_NATIVE_TELEOP_URDF",
+      "sha256": "0edf202353363752c2e6b3eef1f270c87aeb4b1f4e3a76f8a00dc0b5daeed5be"
+    },
+    {
+      "path": "source/teleop/app/share/genie_robot_description/urdf/G2/G2.srdf",
+      "role": "G2_NATIVE_TELEOP_SRDF",
+      "sha256": "61db8bb29caaa7f74c221bcba664e2e8ced223a4faaa2ff6ce93099ac2a32cf8"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_redundancy_teleop_env_cfg.py",
+      "role": "STAGE1A_ISAACLAB_TELEOP_ENVIRONMENT",
+      "sha256": "daf41e0b35f06ff2c2e205e4280953ca73e741018a6951ca3cb9291d55c548dc"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_redundancy_teleop.py",
+      "role": "STAGE1A_TELEOP_REDUNDANCY_CONTROL",
+      "sha256": "f0029437a342463ee7892cddd4c609e4dbaf0745b4d4b2ac321160eea3f0c951"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_redundancy_action.py",
+      "role": "STAGE1A_REDUNDANCY_ACTION_TERM",
+      "sha256": "7cb1712a192a5fc43e86b6a08a2eaf230723346bec965ad2e2f7f881181a0bd5"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_teleop_dataset.py",
+      "role": "TELEOP_ACTION_SCALE_AND_DATASET_CONTRACT",
+      "sha256": "67e9591531388bb9015aee3fd3611bbc02b08f3d60567b7625d2f5cb28074cb6"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_keyboard_teacher_runtime.py",
+      "role": "KEYBOARD_TEACHER_RUNTIME",
+      "sha256": "bd0735741e4a379c1347e9a745f2ba20a938e710d5031e9e948307dd0e7978a4"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_keyboard_teacher_dataset.py",
+      "role": "KEYBOARD_TEACHER_DATASET_SCHEMA",
+      "sha256": "81e6a0c9e6b4ee18a0bd70c96d80bbb16b96acbf4acb6438729448b4295c0f09"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_policy_branch/keyboard_v3_live_driver.py",
+      "role": "KEYBOARD_V3_LIVE_DRIVER",
+      "sha256": "881e1bb5f1967260e7f1661a815acaf6577814d55e033e94dd0ad657d0cb464b"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_policy_branch/keyboard_v3_collection_contract.py",
+      "role": "KEYBOARD_V3_COLLECTION_CONTRACT",
+      "sha256": "b7b19d1042ff91f9362dbdefc58612df8071ead6c96b23557c7e0b9aafd56929"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_policy_branch/training_env_factory.py",
+      "role": "STAGE1A_TRAINING_ENV_AND_SCALE_BINDING",
+      "sha256": "a891f3f8a090e9b0453979c5b4f991f8c85e19eebe40200f77b6091aae87e968"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_policy_branch/production_metric_adapter.py",
+      "role": "METRIC_TO_NORMALIZED_ACTION_ADAPTER",
+      "sha256": "f97401e1dfba896d40d4cf22a448555f2bf39671d0dd1c68470d9dc6f8af65b0"
+    },
+    {
+      "path": "configs/g2_policy_branch/keyboard_collection_v3.json",
+      "role": "KEYBOARD_V3_RATES_FRAMES_AND_ACTION_CONFIG",
+      "sha256": "c1a4bd6ee2968e487a2c706c24e673e8bf34b1a51ce2e9fc5404389de6c62fd3"
+    },
+    {
+      "path": "source/geniesim/rl/sac/keyboard_grasp_contract.py",
+      "role": "SHARED_BC_AND_RESIDUAL_SAC_ACTION_AUTHORITY",
+      "sha256": "39f67a790fd5e33b23e5528a81105b1045ded2f785c26501285a748486bbdb86"
+    },
+    {
+      "path": "source/geniesim/rl/sac/stage1a_grasp_reward.py",
+      "role": "STAGE1A_RESIDUAL_SCALE_AND_REWARD_AUTHORITY",
+      "sha256": "96a38a6630823e9c4dab211c1e7111cb7ad0bcc6ada5bf5ea23424b017151857"
+    },
+    {
+      "path": "source/geniesim/rl/sac/stage1a_real_sac_coordinator.py",
+      "role": "STAGE1A_FINAL_ACTION_BOUND_ENFORCEMENT",
+      "sha256": "30d9096bc0c21151228b188b1612f5af24b00d202c70beb2b34a840f88ead32b"
+    },
+    {
+      "path": "source/geniesim/rl/sac/stage1a_vector_contract.py",
+      "role": "STAGE1A_PER_ENV_ACTION_CONTRACT",
+      "sha256": "ecbc664118cf0abbd09456f74096bb73d5adba03893c511da94561157d41af95"
+    },
+    {
+      "path": "source/geniesim/rl/isaaclab/g2_gripper_reset_contract.py",
+      "role": "CANONICAL_OPEN_AND_RESET_CONTRACT",
+      "sha256": "a2e5bed83d7c5c82cac98d61b3c0cc7ff4cedef57cd590ba2eea8859f5098c83"
+    }
+  ],
+  "robot_description": {
+    "candidate_a_runtime_usd": {
+      "environment_variable": "GENIESIM_CANDIDATE_A_USD",
+      "sha256": "d1ffc70c1e7ee628348742e6f2ed824e15cbeb5e790f06400b8b28d7abe03a28"
+    },
+    "curobo_asset_pack_mirror": "robot/curobo_robot/assets/robot/G2/G2_omnipicker_fixed_dual.urdf",
+    "curobo_asset_pack_mirror_must_match_training_urdf": true,
+    "native_teleop_srdf": "source/teleop/app/share/genie_robot_description/urdf/G2/G2.srdf",
+    "native_teleop_urdf": "source/teleop/app/share/genie_robot_description/urdf/G2/G2.urdf",
+    "training_urdf": "source/data_collection/config/robot_cfg/G2/G2_omnipicker_fixed_dual.urdf",
+    "training_urdf_sha256": "a5efa8eba603ee259ef502b2b371875764ecbf161776a46559fce654ada9af09"
+  },
+  "schema": "geniesim_g2_training_authority_v1",
+  "teleoperation_environment": {
+    "canonical_for_stage1a_collection": "ISAACLAB_KEYBOARD_V3",
+    "collection_config": "configs/g2_policy_branch/keyboard_collection_v3.json",
+    "environment_config": "source/geniesim/rl/isaaclab/g2_redundancy_teleop_env_cfg.py",
+    "keyboard_runtime": "source/geniesim/rl/isaaclab/g2_keyboard_teacher_runtime.py",
+    "native_ros_teleop_entrypoint": "source/teleop/teleop.py",
+    "native_ros_teleop_role": "OPTIONAL_NOT_STAGE1A_TRAINING_AUTHORITY",
+    "physical_action_adapter": "source/geniesim/rl/isaaclab/g2_teleop_dataset.py",
+    "redundancy_controller": "source/geniesim/rl/isaaclab/g2_redundancy_teleop.py",
+    "terminal_driver": "source/geniesim/rl/isaaclab/g2_policy_branch/keyboard_v3_live_driver.py"
+  },
+  "timing_contract": {
+    "control_hz": 50,
+    "dataset_row_hz": 50,
+    "physics_hz": 500,
+    "physics_substeps_per_control": 10,
+    "rgbd_hz": 25
+  }
+}

@@ -7,6 +7,12 @@ set -euo pipefail
 # exits so a native finalization failure cannot erase the visible diagnostics.
 
 repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "${repository_root}/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${repository_root}/.env"
+  set +a
+fi
 python_bin="${G2_ISAACLAB_PYTHON:-${GENIESIM_ISAAC_PYTHON:-}}"
 collection_root=""
 episode_id=""
@@ -141,7 +147,7 @@ if [[ -e "${report_path}" || -e "${process_receipt}" ]]; then
 fi
 
 runner="${repository_root}/scripts/diagnostics/run_g2_curobo_planner_live_smoke.py"
-candidate_asset="${repository_root}/artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg/robot_fix.usda"
+candidate_asset="${GENIESIM_CANDIDATE_A_USD:-${repository_root}/artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg/robot_fix.usda}"
 candidate_hash="d1ffc70c1e7ee628348742e6f2ed824e15cbeb5e790f06400b8b28d7abe03a28"
 
 read -r -d '' child_body <<'EOF' || true

@@ -243,11 +243,12 @@ def _build_command(*, args: argparse.Namespace, attempt_root: Path, attempt: int
     ]
     if args.preflight_only:
         command.append("--preflight-only")
-    else:
+    elif args.wandb_mode != "disabled":
         command.extend(
             (
                 "--wandb",
-                *ONLINE_WANDB_MODE_ARGS,
+                "--wandb-mode",
+                args.wandb_mode,
                 "--wandb-project",
                 args.wandb_project,
                 "--wandb-run-name",
@@ -480,6 +481,15 @@ def main() -> int:
     parser.add_argument("--wandb-project", default="geniesim-g2-stage1a-residual-sac")
     parser.add_argument("--wandb-run-name", required=True)
     parser.add_argument("--wandb-group", default="current-rule-reward-v3-her-force")
+    parser.add_argument(
+        "--wandb-mode",
+        choices=("online", "offline", "disabled"),
+        default="online",
+        help=(
+            "online preserves canonical comparison runs; offline/disabled are "
+            "available for the portable bounded bootstrap route"
+        ),
+    )
     parser.add_argument("--preflight-only", action="store_true")
     parser.add_argument("--frozen-student-advisory-checkpoint", type=Path)
     parser.add_argument("--frozen-student-advisory-sha256")

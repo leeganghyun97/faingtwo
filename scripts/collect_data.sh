@@ -38,5 +38,9 @@ if [[ -z "${GENIESIM_ISAAC_PYTHON:-}" || ! -x "${GENIESIM_ISAAC_PYTHON}" ]]; the
   echo "COLLECTION_FAIL: configure executable GENIESIM_ISAAC_PYTHON in .env" >&2
   exit 1
 fi
+if ! "${repo_root}/scripts/preflight.sh" --profile live --collection; then
+  echo "COLLECTION_FAIL: canonical G2 teleop/URDF/action preflight failed" >&2
+  exit 1
+fi
 export G2_ISAACLAB_PYTHON="${GENIESIM_ISAAC_PYTHON}"
 exec "${command[@]}"

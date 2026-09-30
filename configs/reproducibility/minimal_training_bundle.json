@@ -1,0 +1,157 @@
+{
+  "bundle_id": "G2_STAGE1A_V3_CURRENT_HER_FORCE_MINIMAL_V2",
+  "entries": [
+    {
+      "source": "source/geniesim/assets/robot/G2_omnipicker",
+      "target": "source/geniesim/assets/robot/G2_omnipicker",
+      "type": "directory"
+    },
+    {
+      "source": "source/geniesim/assets/robot/curobo_robot/assets/robot/G2/G2_omnipicker_fixed_dual.urdf",
+      "target": "source/geniesim/assets/robot/curobo_robot/assets/robot/G2/G2_omnipicker_fixed_dual.urdf",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg",
+      "target": "artifacts/g2_bounded_passive_range_qualification_20260921/candidates_v2/A_source_min_q3_10deg_q4_11p25deg",
+      "type": "directory"
+    },
+    {
+      "source": "artifacts/g2_bounded_passive_range_qualification_20260921/CANDIDATE_A_MANIFEST.json",
+      "target": "artifacts/g2_bounded_passive_range_qualification_20260921/CANDIDATE_A_MANIFEST.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_legacy_candidate_a_mechanics_authority_complete_static_rerun_20260921/LEGACY_CANDIDATE_A_MECHANICS_AUTHORITY.json",
+      "target": "artifacts/g2_legacy_candidate_a_mechanics_authority_complete_static_rerun_20260921/LEGACY_CANDIDATE_A_MECHANICS_AUTHORITY.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_legacy_candidate_a_precontact_contract_20260921/PRECONTACT_PIPELINE_CONTRACT.json",
+      "target": "artifacts/g2_legacy_candidate_a_precontact_contract_20260921/PRECONTACT_PIPELINE_CONTRACT.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_controlled_rebuild/20260918_omnipicker_limit_authority/authority-audit.json",
+      "target": "artifacts/g2_controlled_rebuild/20260918_omnipicker_limit_authority/authority-audit.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_candidate_a_left_arm_down_v2/BASELINE_MANIFEST.json",
+      "target": "artifacts/g2_candidate_a_left_arm_down_v2/BASELINE_MANIFEST.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_curobo_delta_qualification_20260920/BASELINE_FREEZE.json",
+      "target": "artifacts/g2_curobo_delta_qualification_20260920/BASELINE_FREEZE.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_curobo_delta_qualification_20260920/P0_DELTA_VALIDATION.json",
+      "target": "artifacts/g2_curobo_delta_qualification_20260920/P0_DELTA_VALIDATION.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_curobo_delta_qualification_20260920/CANONICAL_4D_HANDOFF.json",
+      "target": "artifacts/g2_curobo_delta_qualification_20260920/CANONICAL_4D_HANDOFF.json",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_m2_combined_hardstop_requalification_20260920/model_correction_candidates/E1_wide_joint4_joint3/robot_fix.usda",
+      "target": "artifacts/g2_m2_combined_hardstop_requalification_20260920/model_correction_candidates/E1_wide_joint4_joint3/robot_fix.usda",
+      "type": "file"
+    },
+    {
+      "source": "artifacts/g2_m2_combined_hardstop_requalification_20260920/live/E1_m2_fresh_seed42/hierarchy-report.json",
+      "target": "artifacts/g2_m2_combined_hardstop_requalification_20260920/live/E1_m2_fresh_seed42/hierarchy-report.json",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "1ff58c1310f89f6cbcf480a885a9bee2258d34c075197c88518c318da9bd88e3",
+      "source": "configs/diagnostics/m2_arm_move_target_seed42_v1.json",
+      "target": "configs/diagnostics/m2_arm_move_target_seed42_v1.json",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "c1a4bd6ee2968e487a2c706c24e673e8bf34b1a51ce2e9fc5404389de6c62fd3",
+      "source": "configs/g2_policy_branch/keyboard_collection_v3.json",
+      "target": "configs/g2_policy_branch/keyboard_collection_v3.json",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "e09059007c1f263f067685daf87d2b90422aba6d79ac1a7fc91cce3c6d5fc683",
+      "source": "scripts/diagnostics/run_g2_policy_4d_training_runtime_preflight.py",
+      "target": "scripts/diagnostics/run_g2_policy_4d_training_runtime_preflight.py",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "5b66d28e421d2e5133e8235358dcde0ace897551d9d221b6f093661f2ee2135f",
+      "source": "scripts/run_g2_independent_contact_free_bc_after_collection.py",
+      "target": "scripts/run_g2_independent_contact_free_bc_after_collection.py",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "7bd71d0e4bf6d07f2b1f7a36b1766f762ee687555ebab09e9b49a531ced8d0bb",
+      "source": "scripts/run_g2_independent_contact_free_collection.py",
+      "target": "scripts/run_g2_independent_contact_free_collection.py",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "b7f8f88981581ef12cda7089b5d6a969694af58e18b64656b0ce83682e579bfb",
+      "source": "scripts/train_g2_canonical_contact_free_bc.py",
+      "target": "scripts/train_g2_canonical_contact_free_bc.py",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "e4f1dd9b317a93eaa9fee88db64584ff703e8999a3e40c9224f28b2be42e9b36",
+      "source": "scripts/train_g2_independent_contact_free_bc.py",
+      "target": "scripts/train_g2_independent_contact_free_bc.py",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "fdec68aef317e7cd1758bf4b48f4fe20207353ebd51d8d20e4378a0d2324d510",
+      "source": "artifacts/g2_keyboard_v3_recovery_20260924_v1/GRU_CAUSAL_CLOSE_EDGE_GPU_3K_WANDB_V1/BEST_HUMAN_GRASP_GRU_BC.pt",
+      "source_environment": "GENIESIM_GRU_CHECKPOINT",
+      "target": "artifacts/external/BEST_HUMAN_GRASP_GRU_BC.pt",
+      "type": "file"
+    },
+    {
+      "expected_sha256": "bbc32ed96704e80058b5d9791194dca31d5862019a96edcb9beef48d2f85959d",
+      "source": "artifacts/g2_candidate_a_close_sac_exception_safe_qualification_20260925_v5/checkpoints/stage1a_residual_actor.pt",
+      "source_environment": "GENIESIM_RESIDUAL_ACTOR_CHECKPOINT",
+      "target": "artifacts/external/stage1a_residual_actor.pt",
+      "type": "file"
+    },
+    {
+      "argument": "far_reach_checkpoint",
+      "expected_sha256": "bcb1b7ed0455453c38762d9da00f9db30b5e811ddff44fe1fdbc0957588a14bc",
+      "source_environment": "GENIESIM_FAR_REACH_BC_CHECKPOINT",
+      "target": "artifacts/external/far_reach_bc_best.pt",
+      "type": "file"
+    },
+    {
+      "argument": "pregrasp_hdf5",
+      "expected_sha256": "5c18ac128ff5561788016fd1c6686e78f290547be0c1c261f96fddfaa87604e3",
+      "manifest_field": "hdf5_path",
+      "source_environment": "GENIESIM_PREGRASP_HDF5",
+      "target": "artifacts/external/stage1a_pregrasp_initial_states.hdf5",
+      "type": "file"
+    },
+    {
+      "argument": "pregrasp_report",
+      "expected_sha256": "36ba592518a6a25e1dc8f9e41b324ac1f3fca21820d735e75e9d7efabc57451d",
+      "manifest_field": "report_path",
+      "source_environment": "GENIESIM_PREGRASP_REPORT",
+      "target": "artifacts/external/stage1a_pregrasp_report.json",
+      "type": "file"
+    }
+  ],
+  "minimal_training": {
+    "accepted_transitions": 3000,
+    "num_envs": 10,
+    "replay": "HER_FORCE",
+    "runtime_variant": "V3_BASELINE",
+    "wandb_default": "offline"
+  },
+  "schema": "geniesim_minimal_training_bundle_spec_v1"
+}

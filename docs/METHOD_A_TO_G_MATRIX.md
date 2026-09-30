@@ -10,6 +10,12 @@ receipt, HER_FORCE replay, residual XYZ action contract, and episode-level
 evaluation. `GRASP_SUCCESS` means Stable bilateral contact for 10 control
 steps; Contact and Bilateral are not success.
 
+All seven also share the exact teleoperation/robot/action authority in
+`configs/reproducibility/g2_training_authority.json`: the current G2 training
+URDF/config, robot-root metric action frame, 4.5 mm final XYZ bound, and 0.45 mm
+effective Residual-SAC authority. The 22.5 mm teleop value is a normalization
+divisor and is not a Method A–G per-step action bound.
+
 | Method | Purpose | Input | Output | Data source | Entry point | Main config | Dependency modules | Validation | Current status |
 |---|---|---|---|---|---|---|---|---|---|
 | A — V3 CURRENT | Current Reward-V3/HER_FORCE control baseline | deployable RGB-D/robot state and residual state | SAC checkpoints, replay receipt, episode metrics | current live rollout only | `scripts/run_method_a.sh` | `V3_CURRENT_HER_FORCE_RESET_FIXED_6K_25ENV` | vector smoke, Reward V3, real SAC coordinator, reset gate | dry-run; source freeze; OPEN restore; physics smoke; 6K report | IMPLEMENTED; live fair-run result pending |

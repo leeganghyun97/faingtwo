@@ -22,8 +22,10 @@ RUN cd /tmp && wget https://developer.download.nvidia.cn/compute/cuda/repos/ubun
 RUN dpkg -i /tmp/cuda-keyring_1.1-1_all.deb
 RUN apt-get update
 RUN apt-get -y install cuda-toolkit-12-8
-# NOTICE!!! Default to RTX4090D that we use, do remember to change TORCH_CUDA_ARCH_LIST for your GPU model, see https://github.com/AgibotTech/genie_sim/issues/4
+# G2 reward-RL Stage 4+ targets the installed RTX 5080 Blackwell (sm_120).
+# Keep this a build argument so non-Blackwell images can override it explicitly.
 ENV CUDA_HOME="/usr/local/cuda-12.8"
-ENV TORCH_CUDA_ARCH_LIST="8.9"
+ARG GENIESIM_CUDA_ARCH_LIST="12.0"
+ENV TORCH_CUDA_ARCH_LIST="${GENIESIM_CUDA_ARCH_LIST}"
 RUN cd /tmp/curobo && /isaac-sim/python.sh -m pip install --no-build-isolation .[isaacsim] -i https://pypi.tuna.tsinghua.edu.cn/simple
 CMD ["bash"]

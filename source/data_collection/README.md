@@ -20,7 +20,9 @@ A data collection system for robotic simulation tasks using Isaac Sim and cuRobo
 ## Prerequisites
 
 - Docker (for containerized deployment)
-- NVIDIA GPU with CUDA support (40 series GPU recommended, for 50 series GPU (SM_120) may not be able to install cuRobo)
+- NVIDIA GPU with CUDA support. RTX 50-series builds require CUDA 12.8,
+  a PyTorch build containing `sm_120`, and native extensions compiled with
+  `TORCH_CUDA_ARCH_LIST=12.0`.
 - Python 3.11
 - Conda (for local deployment)
 
@@ -43,7 +45,12 @@ assuming the image of benchmark `registry.agibot.com/genie-sim/open_source:lates
 docker build -f ./dockerfile -t registry.agibot.com/genie-sim/open_source-data-collection:latest .
 ```
 
-**Note:**  For cuRobo installation, the Dockerfile is configured for RTX 4090D by default. If you're using a different GPU model, you need to modify the `TORCH_CUDA_ARCH_LIST` environment variable in the Dockerfile, 50 series GPU (SM_120) may not be able to install cuRobo, this needs a compatibility update by the cuRobo team.
+**Note:** The Dockerfile defaults to the repository's RTX 5080/Blackwell build
+profile (`GENIESIM_CUDA_ARCH_LIST=12.0`, CUDA 12.8). For another architecture,
+override the build argument explicitly, for example
+`--build-arg GENIESIM_CUDA_ARCH_LIST=8.9`. A successful image build is not the
+Stage 4 acceptance gate: import, IK, and collision-kernel smoke evidence on the
+selected GPU must still be recorded.
 
 #### One-Click Data Collection (Recommended)
 
@@ -185,10 +192,14 @@ cp -r config/curobo/configs ${CUROBO_DIR}/src/curobo/content/
 cd ${CUROBO_DIR} && pip install -e ".[isaacsim]" --no-build-isolation
 ```
 
-**Note:** Make sure to set `TORCH_CUDA_ARCH_LIST` according to your GPU architecture before installing cuRobo. For RTX 4090D, use:
+**Note:** Set `TORCH_CUDA_ARCH_LIST` to the measured GPU compute capability
+before installing cuRobo. For RTX 5080/Blackwell (`sm_120`) with CUDA 12.8 use:
 ```bash
-export TORCH_CUDA_ARCH_LIST="8.9"
+export TORCH_CUDA_ARCH_LIST="12.0"
 ```
+
+For RTX 4090D/Ada use `8.9` instead. Do not reuse an Ada-only extension on
+Blackwell.
 
 #### 4. Setup ROS2
 Install ROS2 on your local, who should be located in either `/opt/ros/humble/` or `/opt/ros/jazzy/`.

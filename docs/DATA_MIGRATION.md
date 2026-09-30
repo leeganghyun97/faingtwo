@@ -6,6 +6,8 @@
 3. Verify source-side and destination-side SHA-256 manifests.
 4. Copy `.env.example` to `.env` and set destination-local absolute paths.
 5. Run `./scripts/bootstrap.sh`, then `./scripts/preflight.sh --profile live`.
+   This also proves that the cloned G2 training URDF/config hashes, teleop
+   environment, action scales and the cuRobo asset-pack URDF mirror agree.
 6. Validate a migrated Keyboard-v3 dataset with:
 
    ```bash
@@ -16,5 +18,7 @@
    method from an unverified asset/checkpoint hash.
 
 The migration is complete only when source freeze, frame/unit/rate contracts,
-fresh reset geometry, and sample hashes pass. A missing proprietary asset is
-`NOT_READY`, not a successful clone test.
+fresh reset geometry, exact G2 robot-description parity, action-scale parity,
+and sample hashes pass. A missing proprietary asset is `NOT_READY`, not a
+successful clone test. Never replace the 4.5 mm Stage-1A action bound with the
+22.5 mm teleop normalization scale during migration.

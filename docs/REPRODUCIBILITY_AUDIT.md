@@ -12,9 +12,10 @@ assets, real datasets, or robot hardware.
 |---|---|---|
 | Method A–G definitions | PASS (7/7) | Code-derived matrix and JSON registry; no inferred variants |
 | Canonical dependency closure | PASS | 116 repository-local Python/shell files resolved from the live roots |
-| Static preflight | PASS | Secrets, canonical absolute paths, runtime data, config and fixture checks |
-| Current workstation live preflight | PASS | Isaac Python/packages and hash-pinned Method-A assets; no AppLauncher start |
-| Required static clean-export smoke | PASS | bootstrap check, preflight, sample validation, A–G dry-run, 4 tests |
+| G2 teleop/training authority | PASS | 24 hash-pinned URDF/SRDF/config/action/runtime files; scale and rate parity |
+| Static preflight | PASS | Secrets, canonical absolute paths, runtime data, G2 authority, config and fixture checks |
+| Current shell live preflight | NOT_READY | `.env` is not configured; external checkpoints remain fail-closed |
+| Required static clean-export smoke | PASS | bootstrap check, preflight, sample validation, A–G dry-run, 6 tests |
 | Extended clean-export regression | PARTIAL | 206 passed; 13 require excluded source assets/catalogs or noncanonical legacy entrypoints |
 | Method A–G GPU/Isaac execution | NOT_RUN | Long live experiments were not started by this packaging audit |
 | Real robot runtime | NOT_RUN | The release wrappers do not authorize hardware |
@@ -43,7 +44,13 @@ files and an existing Python interpreter:
 2. static preflight and secret scan;
 3. synthetic dataset validation;
 4. Method A–G config/dry-run dispatch;
-5. reproducibility release tests (`4 passed`).
+5. reproducibility release tests (`6 passed`), including exact G2 authority
+   hashes and teleop/action-scale separation.
+
+The Stage-1A training authority now distinguishes the 22.5 mm teleop
+normalization divisor, 4.5 mm final metric action bound, and 0.45 mm effective
+Residual-SAC authority. It also binds the latest training URDF to the cuRobo
+asset-pack mirror by SHA-256. See `docs/G2_TELEOP_TRAINING_AUTHORITY.md`.
 
 The larger selected regression run reached `206 passed`. The remaining tests
 were deliberately not promoted to PASS because they require either:

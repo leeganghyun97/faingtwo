@@ -15,6 +15,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import math
+import os
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -51,6 +52,23 @@ LEFT_ARM_JOINT_LIMITS_RAD = (
 
 class CandidateALeftArmDownV2Error(RuntimeError):
     pass
+
+
+def _pregrasp_evidence_path(
+    sample: Mapping[str, Any], *, key: str, environment_variable: str
+) -> Path:
+    """Resolve movable evidence while retaining the manifest's hash authority.
+
+    The historical manifest records the workstation on which the evidence was
+    produced.  Requiring that absolute pathname on every clone makes an
+    otherwise byte-identical artifact impossible to migrate.  A local path may
+    therefore be injected, but the SHA-256 stored in the immutable manifest is
+    still authoritative and is checked below.
+    """
+
+    configured = os.environ.get(environment_variable, "").strip()
+    value = configured if configured else str(sample.get(key, ""))
+    return Path(value).expanduser().resolve()
 
 
 def _sha256(path: Path) -> str:
@@ -124,8 +142,13 @@ def load_baseline_manifest() -> tuple[Path, dict[str, Any], str]:
     _finite_vector(sample.get("right_arm_qd_rad_s"), width=7, label="RIGHT_ARM_QD")
     _finite_vector(sample.get("ee_pose_robot_root_m_xyzw"), width=7, label="EE_POSE")
     _finite_vector(sample.get("cube_pose_robot_root_m_xyzw"), width=7, label="CUBE_POSE")
-    for key in ("hdf5_path", "report_path"):
-        evidence_path = Path(str(sample.get(key, "")))
+    for key, environment_variable in (
+        ("hdf5_path", "GENIESIM_PREGRASP_HDF5"),
+        ("report_path", "GENIESIM_PREGRASP_REPORT"),
+    ):
+        evidence_path = _pregrasp_evidence_path(
+            sample, key=key, environment_variable=environment_variable
+        )
         expected = str(sample.get(key.replace("path", "sha256"), ""))
         if not evidence_path.is_file() or _sha256(evidence_path) != expected:
             raise CandidateALeftArmDownV2Error(f"PREGRASP_{key.upper()}_DRIFT")
@@ -192,9 +215,21 @@ def selected_pregrasp_initial_state() -> PregraspInitialState:
     sample = manifest["pregrasp_initial_state"]
     return PregraspInitialState(
         sample_id=str(sample["sample_id"]),
-        hdf5_path=str(sample["hdf5_path"]),
+        hdf5_path=str(
+            _pregrasp_evidence_path(
+                sample,
+                key="hdf5_path",
+                environment_variable="GENIESIM_PREGRASP_HDF5",
+            )
+        ),
         hdf5_sha256=str(sample["hdf5_sha256"]),
-        report_path=str(sample["report_path"]),
+        report_path=str(
+            _pregrasp_evidence_path(
+                sample,
+                key="report_path",
+                environment_variable="GENIESIM_PREGRASP_REPORT",
+            )
+        ),
         report_sha256=str(sample["report_sha256"]),
         hdf5_row_index=int(sample["hdf5_row_index"]),
         source_control_step=int(sample["source_control_step"]),

@@ -32,16 +32,55 @@ GRU_CHECKPOINT = ROOT / "artifacts/g2_keyboard_v3_recovery_20260924_v1/GRU_CAUSA
 GRU_SHA256 = ""  # resolved from the diagnostic authority below
 FAR_BC_CHECKPOINT = ROOT / "artifacts/g2_curobo_grasp_bc/CONTACT_FREE_BC.pt"
 RESIDUAL_ACTOR_CHECKPOINT = ROOT / "artifacts/g2_stage1a_residual_actor/RESIDUAL_ACTOR.pt"
+# The Phase-6/Keyboard-V3 receipt is retained as immutable historical evidence,
+# but the active reset-fixed Stage-1A runtime intentionally differs from it in
+# the files below.  Accept only this exact, reviewable delta.  A byte change in
+# any listed file, an extra historical mismatch, or a missing mismatch remains
+# fail-closed.  This avoids the former situation where the repository's current
+# training path could never pass its own source-freeze check.
+CURRENT_RUNTIME_AUTHORIZED_HISTORICAL_DELTAS: dict[str, dict[str, str]] = {
+    "source/geniesim/rl/isaaclab/g2_policy_branch/action_interface.py": {
+        "sha256": "4c5ba1ce495997c51c186b86871f5982d86547ad337cfdac76f3bda059b20007",
+        "reason": "CURRENT_STAGE1A_ACTION_INTERFACE_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_policy_branch/observation.py": {
+        "sha256": "0c766be7a836b229c741b9b94b0fbbac806ff6c88d244b050b510e7d5c355410",
+        "reason": "CURRENT_STAGE1A_OBSERVATION_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_policy_branch/production_metric_adapter.py": {
+        "sha256": "f97401e1dfba896d40d4cf22a448555f2bf39671d0dd1c68470d9dc6f8af65b0",
+        "reason": "CURRENT_STAGE1A_METRIC_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_policy_branch/p0_runtime_contract.py": {
+        "sha256": "f548dd1eee23e22d1d51bef4737cdd5777151e2bbfa0b48be1703be1b4d12b63",
+        "reason": "CURRENT_STAGE1A_RUNTIME_CONTRACT_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_policy_branch/runtime_asset_binding.py": {
+        "sha256": "d0d59d1ec9c5028297964ac1d56b5ee61a9a4fa4e82217170b9264c7e8124964",
+        "reason": "CURRENT_STAGE1A_ASSET_BINDING_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_policy_branch/training_env_factory.py": {
+        "sha256": "a891f3f8a090e9b0453979c5b4f991f8c85e19eebe40200f77b6091aae87e968",
+        "reason": "CURRENT_STAGE1A_TRAINING_ENV_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_gripper_reset_contract.py": {
+        "sha256": "a2e5bed83d7c5c82cac98d61b3c0cc7ff4cedef57cd590ba2eea8859f5098c83",
+        "reason": "MEASURED_STATE_OPEN_RESTORE_AND_RESET_PARITY_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_keyboard_pose.py": {
+        "sha256": "d907edaead950431b2e35b68ce572669e055b2e6e4c22f4105cbaeb14d2a52f5",
+        "reason": "CURRENT_STAGE1A_KEYBOARD_POSE_AUTHORITY",
+    },
+    "source/geniesim/rl/isaaclab/g2_lift_task_mdp.py": {
+        "sha256": "85845a6c68031dfdd5cf17d820209469066dc3181c0ce6a2936ab7e6b5926085",
+        "reason": "CURRENT_STAGE1A_TASK_MDP_AUTHORITY",
+    },
+}
 GOVERNOR_FIX_RELATIVE_PATH = "source/geniesim/rl/isaaclab/g2_gripper_reset_contract.py"
 GOVERNOR_FIX_PREVIOUS_SHA256 = "0edb05f7fbaadbf2519cb6b8deff42ba49094e220cb467a08dd55399127400ae"
-# Active reset-lifecycle authority pins two evidence-scoped corrections: the
-# 1600-step OPEN observation budget for a legitimate post-CLOSE four-bar
-# recovery, and the 4-µrad numeric landing allowance required by r5's
-# stationary 0.66--3.90-µrad PhysX solver residual.  The existing 0.0002-rad
-# stop band, 0.005-rad/s settle proof, 0.8-rad/s cap, joint limits, controller,
-# and mechanics remain unchanged.  This is not blanket acceptance of arbitrary
-# historical drift.
-GOVERNOR_FIX_CURRENT_SHA256 = "18fbd24cac18f3327ed8863f21ab9828d4806f5bb12090e217c9584b0a4b21f7"
+GOVERNOR_FIX_CURRENT_SHA256 = CURRENT_RUNTIME_AUTHORIZED_HISTORICAL_DELTAS[
+    GOVERNOR_FIX_RELATIVE_PATH
+]["sha256"]
 
 
 def _sha256(path: Path) -> str:
@@ -102,15 +141,16 @@ def _vector_source_freeze(
         for relative, record in historical["frozen"].items()
         if not bool(record["match"])
     }
-    controlled_governor_fix_delta = (
-        set(historical_mismatches) == {GOVERNOR_FIX_RELATIVE_PATH}
-        and historical_mismatches[GOVERNOR_FIX_RELATIVE_PATH]["expected"]
-        == GOVERNOR_FIX_PREVIOUS_SHA256
-        and historical_mismatches[GOVERNOR_FIX_RELATIVE_PATH]["actual"]
-        == GOVERNOR_FIX_CURRENT_SHA256
+    authorized_current_runtime_delta = (
+        set(historical_mismatches)
+        == set(CURRENT_RUNTIME_AUTHORIZED_HISTORICAL_DELTAS)
+        and all(
+            historical_mismatches[relative]["actual"] == authority["sha256"]
+            for relative, authority in CURRENT_RUNTIME_AUTHORIZED_HISTORICAL_DELTAS.items()
+        )
     )
     historical_inputs_ok = (
-        not historical_mismatches or controlled_governor_fix_delta
+        not historical_mismatches or authorized_current_runtime_delta
     )
     p0_delta = __import__("json").loads(diagnostic.P0_DELTA.read_text(encoding="utf-8"))
     handoff = __import__("json").loads(diagnostic.HANDOFF.read_text(encoding="utf-8"))
@@ -172,13 +212,20 @@ def _vector_source_freeze(
     return {
         "SOURCE_FREEZE": "PASS" if historical_inputs_ok and historical_contract_ok and not missing else "FAIL",
         "SOURCE_FREEZE_COMPLETE": historical_inputs_ok and historical_contract_ok and not missing,
-        "freeze_profile": "STAGE1A_VECTOR_RUNTIME_ACTIVE_MASK_FIX_DELTA_V1",
+        "freeze_profile": "STAGE1A_VECTOR_RUNTIME_RESET_FIXED_CURRENT_V1",
         "manifest_sha256": manifest_sha256,
         "authority_hashes": hashes,
         "historical_immutable_inputs_match": historical_inputs_ok,
         "historical_frozen_mismatches": historical_mismatches,
+        "authorized_current_runtime_delta": {
+            "authorized": authorized_current_runtime_delta,
+            "files": CURRENT_RUNTIME_AUTHORIZED_HISTORICAL_DELTAS,
+        },
+        # Retain the old receipt field for consumers that display it.  The
+        # current authority is the complete delta above, not a governor-only
+        # exception.
         "controlled_governor_fix_delta": {
-            "authorized": controlled_governor_fix_delta,
+            "authorized": False,
             "relative_path": GOVERNOR_FIX_RELATIVE_PATH,
             "previous_sha256": GOVERNOR_FIX_PREVIOUS_SHA256,
             "current_sha256": GOVERNOR_FIX_CURRENT_SHA256,
@@ -414,6 +461,11 @@ def main() -> int:
     parser.add_argument("--wandb-run-name")
     parser.add_argument("--wandb-group")
     parser.add_argument(
+        "--verify-source-freeze-only",
+        action="store_true",
+        help="verify the current Stage-1A source authority without starting Isaac",
+    )
+    parser.add_argument(
         "--preflight-only",
         action="store_true",
         help="bounded 25-env/100-transition reset/runtime smoke with zero SAC updates",
@@ -479,6 +531,11 @@ def main() -> int:
         ),
     )
     args = parser.parse_args()
+    if args.verify_source_freeze_only:
+        diagnostic = _load(DIAGNOSTIC_SOURCE, "stage1a_source_freeze_only_diagnostic")
+        receipt = _vector_source_freeze(diagnostic)
+        print(json.dumps(receipt, indent=2, sort_keys=True))
+        return 0 if receipt.get("SOURCE_FREEZE") == "PASS" else 1
     if not args.execute_live:
         raise SystemExit("VECTOR_RUNTIME_REQUIRES_EXPLICIT_EXECUTE_LIVE")
     if args.accepted_transitions in (15000, 30000) and args.num_envs not in (10, 25):

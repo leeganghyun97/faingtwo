@@ -31,10 +31,15 @@ events; **Grasp Success means Stable bilateral contact only**.
 
 ## 1. Purpose
 
-The reproducibility profile covers Keyboard-v3 collection and validation,
+The reproducibility profile covers the Keyboard-v3 teleoperation environment,
+the exact G2 training URDF/config/action authority, collection and validation,
 measured-state OPEN reset gating, source-freeze checks, Method A–G dry-run/live
 entrypoints, episode-level grasp evaluation, and bounded safety checks. The
-exact method definitions are in
+robot/action authority is frozen in
+[`configs/reproducibility/g2_training_authority.json`](configs/reproducibility/g2_training_authority.json)
+and explained in
+[`docs/G2_TELEOP_TRAINING_AUTHORITY.md`](docs/G2_TELEOP_TRAINING_AUTHORITY.md).
+The exact method definitions are in
 [`docs/METHOD_A_TO_G_MATRIX.md`](docs/METHOD_A_TO_G_MATRIX.md).
 
 ## 2. Supported platform
@@ -71,6 +76,13 @@ See [`docs/EXTERNAL_ASSETS.md`](docs/EXTERNAL_ASSETS.md) and
 [`docs/DATA_MIGRATION.md`](docs/DATA_MIGRATION.md). Missing inputs are a
 fail-closed `NOT_READY`, not a reason to weaken a hash check.
 
+For transfer between authorized workstations, the smallest supported live
+package is the local-only 230 MB Stage-1A bundle. It contains Candidate-A's
+complete USD closure, immutable pregrasp evidence, Human-GRU/far-reach BC, and
+residual initialization. Isaac Sim/Lab is deliberately not included. Export
+and install commands are in
+[`docs/EXTERNAL_ASSETS.md`](docs/EXTERNAL_ASSETS.md).
+
 ## 5. Environment installation
 
 ```bash
@@ -86,11 +98,13 @@ ROS 2, and cuRobo remain external platform installs. Set
 ```bash
 ./scripts/preflight.sh --profile static
 ./scripts/preflight.sh --profile live --method A
+./scripts/preflight.sh --profile live --collection
 ```
 
 Static checks never start Isaac. Live preflight checks the interpreter,
-packages, external assets, hashes, and legacy source-freeze layout without
-issuing robot commands.
+packages, external assets, hashes, the latest G2 training URDF/config, action
+scales, cuRobo URDF-mirror parity, and the active reset-fixed runtime
+source-freeze profile without issuing robot commands.
 
 ## 7. Data collection
 
@@ -108,7 +122,10 @@ Collection is dry-run unless `--execute-live` is present:
 ```
 
 The terminal collection path controls simulation only; it is not a real-robot
-command launcher.
+command launcher. Its default key pulse is 1 mm and its metric XYZ norm is
+bounded at 4.5 mm. The 22.5 mm value in the teleop environment is the
+physical-to-normalized translation divisor, not the Stage-1A per-step motion
+authority. Residual SAC has a separate effective authority of 0.45 mm.
 
 ## 8. Dataset validation
 
@@ -148,6 +165,22 @@ Live execution is explicit and refuses an existing output directory:
 Method E is diagnostic privileged authority, not deployable production logic.
 Methods F/G require the frozen student checkpoint and preserve their documented
 advisory/auxiliary authority boundaries.
+
+The minimum real training route needs neither Methods F/G nor an online W&B
+account. After installing the bundle and passing live preflight:
+
+```bash
+./scripts/install_minimal_isaac_deps.sh
+./scripts/preflight.sh --profile live --method A
+./scripts/run_minimal_stage1a_training.sh --wandb-mode offline
+```
+
+This runs bounded 10-env/3K V3 CURRENT + HER_FORCE, including fresh-process
+startup retry, finite physics smoke, measured OPEN restore, source-freeze,
+replay/optimizer updates, and a 3K checkpoint.
+The minimum training route uses the frozen far-reach BC and does not invoke
+the cuRobo planner. cuRobo remains required for Keyboard/automatic collection,
+not for this Stage-1A bootstrap.
 
 ## 10. Evaluation and ablation
 

@@ -20,6 +20,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 CONFIG = ROOT / "configs/reproducibility/methods_a_to_g.json"
 ASSETS = ROOT / "configs/reproducibility/external_assets.json"
+TRAINING_AUTHORITY = ROOT / "configs/reproducibility/g2_training_authority.json"
+PREFLIGHT = ROOT / "scripts/preflight.sh"
 SUPERVISOR = ROOT / "scripts/diagnostics/run_g2_stage1a_current_retry_supervisor.py"
 RUNNER = ROOT / "scripts/run_g2_stage1a_vector_runtime.py"
 
@@ -65,6 +67,9 @@ def main() -> int:
 
     methods = load_json(CONFIG)["methods"]
     method = methods[args.method]
+    training_authority = load_json(TRAINING_AUTHORITY)
+    action_authority = training_authority["action_contract"]
+    robot_authority = training_authority["robot_description"]
     budget = 7500 if args.smoke else args.accepted_transitions
     variant = method[f"runtime_variant_{budget}"]
     accepted = 100 if args.smoke else budget
@@ -103,7 +108,11 @@ def main() -> int:
             "--frozen-student-advisory-sha256", str(expected_student_hash),
         ])
 
-    missing = [str(path) for path in (isaac_python, SUPERVISOR, RUNNER) if not path.is_file()]
+    missing = [
+        str(path)
+        for path in (isaac_python, PREFLIGHT, SUPERVISOR, RUNNER, TRAINING_AUTHORITY)
+        if not path.is_file()
+    ]
     hash_mismatch = False
     if advisory and student_path is not None:
         if not student_path.is_file():
@@ -112,7 +121,7 @@ def main() -> int:
             hash_mismatch = digest(student_path) != expected_student_hash
 
     receipt = {
-        "schema": "geniesim_method_launch_v1",
+        "schema": "geniesim_method_launch_v2",
         "method": args.method,
         "name": method["name"],
         "purpose": method["purpose"],
@@ -126,12 +135,37 @@ def main() -> int:
         "student_advisory": advisory,
         "missing_inputs": missing,
         "checkpoint_hash_mismatch": hash_mismatch,
+        "training_authority": {
+            "manifest": str(TRAINING_AUTHORITY.relative_to(ROOT)),
+            "manifest_sha256": digest(TRAINING_AUTHORITY),
+            "training_urdf": robot_authority["training_urdf"],
+            "training_urdf_sha256": robot_authority["training_urdf_sha256"],
+            "teleop_translation_m_per_normalized": action_authority[
+                "teleop_translation_m_per_normalized"
+            ],
+            "stage1a_final_xyz_max_norm_m": action_authority[
+                "stage1a_final_xyz_max_norm_m"
+            ],
+            "residual_effective_max_norm_m": action_authority[
+                "residual_effective_max_norm_m"
+            ],
+        },
+        "live_preflight_command": shlex.join(
+            [str(PREFLIGHT), "--profile", "live", "--method", args.method]
+        ),
         "command": shlex.join(command),
     }
     print(json.dumps(receipt, indent=2, sort_keys=True))
     if not args.execute_live:
         return 0
     if missing or hash_mismatch:
+        raise SystemExit("LIVE_METHOD_PREFLIGHT_FAILED")
+    preflight = subprocess.run(
+        [str(PREFLIGHT), "--profile", "live", "--method", args.method],
+        cwd=ROOT,
+        check=False,
+    )
+    if preflight.returncode != 0:
         raise SystemExit("LIVE_METHOD_PREFLIGHT_FAILED")
     if output.exists():
         raise SystemExit(f"OUTPUT_REFUSES_OVERWRITE:{output}")

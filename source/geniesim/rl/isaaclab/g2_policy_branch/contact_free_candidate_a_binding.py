@@ -134,9 +134,23 @@ def _strict_json(path: Path, *, label: str) -> dict[str, Any]:
     return value
 
 
-def _same_path(value: Any, expected: Path) -> bool:
+def _same_path(value: Any, expected: Path, *, repository_root: Path) -> bool:
+    """Validate either the current clone path or its exact repository suffix.
+
+    Candidate-A receipts predate the portability bundle and contain the
+    producing workstation's absolute repository root.  The receipt remains
+    hash-frozen; on another clone only that root prefix may differ.  Comparing
+    the complete repository-relative suffix preserves the authority without
+    accepting a filename-only match.
+    """
+
     try:
-        return Path(value).expanduser().resolve() == expected.resolve()
+        recorded = Path(value).expanduser()
+        resolved_expected = expected.resolve()
+        if recorded.resolve() == resolved_expected:
+            return True
+        relative = resolved_expected.relative_to(repository_root.resolve())
+        return recorded.is_absolute() and recorded.parts[-len(relative.parts) :] == relative.parts
     except (OSError, TypeError, ValueError):
         return False
 
@@ -185,7 +199,7 @@ class ContactFreeCandidateABindingReceipt:
 
 
 def _validate_candidate_manifest(
-    value: Mapping[str, Any], *, candidate: Path, contract: Path
+    value: Mapping[str, Any], *, candidate: Path, contract: Path, repository_root: Path
 ) -> None:
     _require(
         value.get("schema") == "g2_bounded_passive_range_candidate_manifest_v1",
@@ -199,9 +213,15 @@ def _validate_candidate_manifest(
     row = candidates[0]
     _require(isinstance(row, Mapping), "CANDIDATE_MANIFEST_ROW_INVALID")
     _require(row.get("candidate_id") == "A_source_min_q3_10deg_q4_11p25deg", "CANDIDATE_ID_MISMATCH")
-    _require(_same_path(row.get("asset_path"), candidate), "CANDIDATE_MANIFEST_ASSET_PATH_MISMATCH")
+    _require(
+        _same_path(row.get("asset_path"), candidate, repository_root=repository_root),
+        "CANDIDATE_MANIFEST_ASSET_PATH_MISMATCH",
+    )
     _require(row.get("asset_sha256") == CANDIDATE_A_SHA256, "CANDIDATE_MANIFEST_ASSET_HASH_MISMATCH")
-    _require(_same_path(row.get("contract_path"), contract), "CANDIDATE_MANIFEST_CONTRACT_PATH_MISMATCH")
+    _require(
+        _same_path(row.get("contract_path"), contract, repository_root=repository_root),
+        "CANDIDATE_MANIFEST_CONTRACT_PATH_MISMATCH",
+    )
     _require(row.get("contract_sha256") == CANDIDATE_A_CONTRACT_SHA256, "CANDIDATE_MANIFEST_CONTRACT_HASH_MISMATCH")
     _require(row.get("mechanical_diff_count") == 4, "CANDIDATE_MECHANICAL_DIFF_COUNT_MISMATCH")
 
@@ -213,16 +233,41 @@ def _validate_candidate_contract(
     production: Path,
     trajectory: Path,
     limit_authority: Path,
+    repository_root: Path,
 ) -> None:
     _require(value.get("schema") == "g2_bounded_passive_range_candidate_v1", "CANDIDATE_CONTRACT_SCHEMA_MISMATCH")
     _require(value.get("candidate_id") == "A_source_min_q3_10deg_q4_11p25deg", "CANDIDATE_CONTRACT_ID_MISMATCH")
-    _require(_same_path(value.get("asset_path"), candidate), "CANDIDATE_CONTRACT_ASSET_PATH_MISMATCH")
+    _require(
+        _same_path(value.get("asset_path"), candidate, repository_root=repository_root),
+        "CANDIDATE_CONTRACT_ASSET_PATH_MISMATCH",
+    )
     _require(value.get("asset_sha256") == CANDIDATE_A_SHA256, "CANDIDATE_CONTRACT_ASSET_HASH_MISMATCH")
-    _require(_same_path(value.get("production_asset_path"), production), "CANDIDATE_CONTRACT_PRODUCTION_PATH_MISMATCH")
+    _require(
+        _same_path(
+            value.get("production_asset_path"),
+            production,
+            repository_root=repository_root,
+        ),
+        "CANDIDATE_CONTRACT_PRODUCTION_PATH_MISMATCH",
+    )
     _require(value.get("production_asset_sha256") == PRODUCTION_ASSET_SHA256, "CANDIDATE_CONTRACT_PRODUCTION_HASH_MISMATCH")
-    _require(_same_path(value.get("frozen_trajectory_path"), trajectory), "CANDIDATE_CONTRACT_TRAJECTORY_PATH_MISMATCH")
+    _require(
+        _same_path(
+            value.get("frozen_trajectory_path"),
+            trajectory,
+            repository_root=repository_root,
+        ),
+        "CANDIDATE_CONTRACT_TRAJECTORY_PATH_MISMATCH",
+    )
     _require(value.get("frozen_trajectory_sha256") == FROZEN_TRAJECTORY_SHA256, "CANDIDATE_CONTRACT_TRAJECTORY_HASH_MISMATCH")
-    _require(_same_path(value.get("authority_audit_path"), limit_authority), "CANDIDATE_CONTRACT_AUTHORITY_PATH_MISMATCH")
+    _require(
+        _same_path(
+            value.get("authority_audit_path"),
+            limit_authority,
+            repository_root=repository_root,
+        ),
+        "CANDIDATE_CONTRACT_AUTHORITY_PATH_MISMATCH",
+    )
     _require(value.get("authority_audit_sha256") == LIMIT_AUTHORITY_SHA256, "CANDIDATE_CONTRACT_AUTHORITY_HASH_MISMATCH")
     _require(value.get("diagnostic_only") is True, "CANDIDATE_CONTRACT_NOT_DIAGNOSTIC_ONLY")
     _require(value.get("hardware_authority_claim") is False, "CANDIDATE_CONTRACT_HARDWARE_AUTHORITY_CLAIMED")
@@ -335,6 +380,7 @@ def resolve_contact_free_candidate_a(
         manifest,
         candidate=paths["CANDIDATE_A_ASSET"],
         contract=paths["CANDIDATE_A_CONTRACT"],
+        repository_root=root,
     )
     _validate_candidate_contract(
         contract,
@@ -342,6 +388,7 @@ def resolve_contact_free_candidate_a(
         production=paths["PRODUCTION_ASSET"],
         trajectory=paths["FROZEN_TRAJECTORY"],
         limit_authority=paths["LIMIT_AUTHORITY"],
+        repository_root=root,
     )
     _validate_mechanics_authority(mechanics)
     _validate_precontact_contract(precontact)

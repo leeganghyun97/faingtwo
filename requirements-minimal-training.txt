@@ -1,0 +1,5 @@
+# Install into the already-installed Isaac Sim/Lab Python environment.
+# Torch, NumPy, Gymnasium and CUDA are owned by the Isaac installation.
+h5py==3.16.0
+PyYAML==6.0.3
+wandb==0.26.1

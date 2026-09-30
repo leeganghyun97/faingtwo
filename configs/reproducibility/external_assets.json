@@ -24,9 +24,30 @@
       "redistribution": "EXCLUDED_LEARNED_ARTIFACT",
       "required_for": [
         "collection",
-        "hybrid_runtime"
+        "hybrid_runtime",
+        "all_live_methods"
       ],
       "sha256": "fdec68aef317e7cd1758bf4b48f4fe20207353ebd51d8d20e4378a0d2324d510"
+    },
+    {
+      "environment_variable": "GENIESIM_PREGRASP_HDF5",
+      "id": "stage1a_pregrasp_hdf5",
+      "legacy_relative_path": "artifacts/external/stage1a_pregrasp_initial_states.hdf5",
+      "redistribution": "LOCAL_TRANSFER_ONLY",
+      "required_for": [
+        "all_live_methods"
+      ],
+      "sha256": "5c18ac128ff5561788016fd1c6686e78f290547be0c1c261f96fddfaa87604e3"
+    },
+    {
+      "environment_variable": "GENIESIM_PREGRASP_REPORT",
+      "id": "stage1a_pregrasp_report",
+      "legacy_relative_path": "artifacts/external/stage1a_pregrasp_report.json",
+      "redistribution": "LOCAL_TRANSFER_ONLY",
+      "required_for": [
+        "all_live_methods"
+      ],
+      "sha256": "36ba592518a6a25e1dc8f9e41b324ac1f3fca21820d735e75e9d7efabc57451d"
     },
     {
       "environment_variable": "GENIESIM_FROZEN_STUDENT_CHECKPOINT",
