@@ -1,0 +1,66 @@
+{
+  "bundle_name": "g2-stage1a-data-models",
+  "distribution_scope": "AUTHORIZED_GOOGLE_DRIVE_TRANSFER",
+  "entries": [
+    {
+      "id": "minimal_runtime_assets",
+      "kind": "directory",
+      "required": true,
+      "roles": [
+        "METHOD_A",
+        "METHOD_B",
+        "METHOD_C",
+        "METHOD_D",
+        "METHOD_E",
+        "METHOD_F",
+        "METHOD_G"
+      ],
+      "source_environment": "GENIESIM_MINIMAL_BUNDLE_SOURCE",
+      "target": "runtime/minimal_bundle"
+    },
+    {
+      "expected_sha256": "1834e70db6fc3a56e77350248961c24d3606dc1ce9385ead462ee5349d31bff2",
+      "id": "frozen_spatial_student",
+      "kind": "file",
+      "required": true,
+      "roles": [
+        "METHOD_F",
+        "METHOD_G"
+      ],
+      "source_environment": "GENIESIM_FROZEN_STUDENT_SOURCE",
+      "target": "models/CONDITIONAL_CORAL_FROZEN_STUDENT.pt"
+    },
+    {
+      "id": "fsm_advisory_checkpoint_3000",
+      "kind": "file",
+      "required": false,
+      "roles": [
+        "REFERENCE_EVALUATION"
+      ],
+      "source_environment": "GENIESIM_REFERENCE_CHECKPOINT_3K_SOURCE",
+      "target": "models/fsm_advisory/checkpoint_3000.pt"
+    },
+    {
+      "id": "fsm_advisory_checkpoint_15000",
+      "kind": "file",
+      "required": false,
+      "roles": [
+        "REFERENCE_EVALUATION"
+      ],
+      "source_environment": "GENIESIM_REFERENCE_CHECKPOINT_15K_SOURCE",
+      "target": "models/fsm_advisory/checkpoint_15000.pt"
+    },
+    {
+      "id": "keyboard_bc_demo_v26",
+      "kind": "directory",
+      "required": false,
+      "roles": [
+        "BC_TRAINING",
+        "OFFLINE_VALIDATION"
+      ],
+      "source_environment": "GENIESIM_KEYBOARD_BC_DATA_SOURCE",
+      "target": "datasets/keyboard_bc_v26"
+    }
+  ],
+  "schema": "geniesim_g2_transfer_bundle_v1"
+}
