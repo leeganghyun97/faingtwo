@@ -1,0 +1,101 @@
+{
+  "package": "x2_cerf_locomotion_handoff_20261124",
+  "created_utc": "2026-11-24T06:49:09+00:00",
+  "scope": "documentation-only; excludes checkpoints, raw traces, simulator assets, binaries, credentials, and private links",
+  "source_snapshot": {
+    "repository": "x2_locomotion_migration_20261124",
+    "commit": "0dee161c976e29f4d9caa5770cb1d261c617ed8b"
+  },
+  "files": [
+    {
+      "path": "00_CURRENT_STATE_AND_DECISION.md",
+      "bytes": 5420,
+      "sha256": "53033164bb838bd3641a1d16b5e6c68667adb380f3cb315aba1d35ede6d98d2a"
+    },
+    {
+      "path": "04_NEW_PC_CODEX_PROMPT_KO.md",
+      "bytes": 4437,
+      "sha256": "82f108fd48d5353797ff308fd630fd745ce1d30112b23011daa115c41395dd57"
+    },
+    {
+      "path": "05_DOWNLOAD_AND_RECONSTRUCTION_COMMANDS_KO.md",
+      "bytes": 3135,
+      "sha256": "a0c20c1c43b2869e00dd3a717887417ece4e02edd82a9614acec91531950c573"
+    },
+    {
+      "path": "06_METRICS_AND_EVIDENCE_RULES_KO.md",
+      "bytes": 4469,
+      "sha256": "59e6f3593128524be74748587dbd8107bf60ba491d8c224ae6c611e2c51ef7ef"
+    },
+    {
+      "path": "07_ARTIFACT_REQUEST_TEMPLATE_KO.md",
+      "bytes": 2049,
+      "sha256": "321bb4ebf5f009c63fa1a455f843b67c06cca36bb23aca3f6f0bad5fec7ef8aa"
+    },
+    {
+      "path": "08_EVIDENCE_STATUS_TABLE_KO.md",
+      "bytes": 3801,
+      "sha256": "baeb62fc703c9568fb862494e72edfd74db074183da5d6b0b9fc252eb356a2a6"
+    },
+    {
+      "path": "BUILD_HANDOFF_MANIFEST.py",
+      "bytes": 1614,
+      "sha256": "962ac524d8c25d052b821c38331ea20b7c07096f59d78797547efacb8da833db"
+    },
+    {
+      "path": "README_KO.md",
+      "bytes": 6230,
+      "sha256": "23d3e685005a0313dabb762572e4d91d04fc63972f965d3f08399db6ccf09cec"
+    },
+    {
+      "path": "SOURCE_BASIS.md",
+      "bytes": 1586,
+      "sha256": "2a884d470bd5485f78c5734c1c22fa1fe362de7c8e30fd63b5a022a1419c91a3"
+    },
+    {
+      "path": "VERIFY_HANDOFF.py",
+      "bytes": 2320,
+      "sha256": "a9969438968028eb16b94d86db97e36cce983755d2cf51e39de8821c720be195"
+    },
+    {
+      "path": "agent_drafts/01_METHODOLOGY_AND_EXPERIMENT_HISTORY.md",
+      "bytes": 32280,
+      "sha256": "ebf533809e73d64e16a750af109ea9f83ce89c1bfd306633ac649cd4eee163c9"
+    },
+    {
+      "path": "agent_drafts/02_RUNTIME_REPRODUCTION_AND_COMMANDS.md",
+      "bytes": 33141,
+      "sha256": "e6bfe0dae428e2596f2897d4f8a91f1d1f080bac0f56ff52a881b6c19a496b6a"
+    },
+    {
+      "path": "agent_drafts/03_DIAGNOSTICS_FAILURES_AND_ARTIFACT_MAP.md",
+      "bytes": 27985,
+      "sha256": "1a75f4a37241b82e334fe8ffc2373c9e078697f083b3ccadf96120ebb7bd6395"
+    },
+    {
+      "path": "agent_drafts/04_INDEPENDENT_GAP_AND_SAFETY_REVIEW.md",
+      "bytes": 11990,
+      "sha256": "db57f46fa2bc8a6ca3397e05a103e45a502b91fe388672b087adbb0f58f98359"
+    },
+    {
+      "path": "agent_drafts/05_NEW_HOST_EXPERIMENT_PLAYBOOK.md",
+      "bytes": 38288,
+      "sha256": "74f439f8e03567ab96d8ce1021682b8e72c1df0cc0b84d167e8930404e8ab2bb"
+    },
+    {
+      "path": "agent_drafts/06_LINEAGE_DIMENSION_VERIFICATION.md",
+      "bytes": 12404,
+      "sha256": "f0aa9d5e8bc745a7ca96f259df5ce3f4039672b4350713f16d8e32ae8a3b1345"
+    },
+    {
+      "path": "agent_drafts/07_FINAL_HANDOFF_REVIEW.md",
+      "bytes": 7400,
+      "sha256": "1c33209aa7c1f78c21a57a558b15c9a77d0cf294c3a159d58112f1e3cf6ed4d2"
+    },
+    {
+      "path": "source_maps/ORIGINAL_EVIDENCE_MAP.md",
+      "bytes": 4830,
+      "sha256": "4852415fac2920aa24647b03148f22ee5a9fde1d0b8092d19d0fd3425f842bcc"
+    }
+  ]
+}
