@@ -1,6 +1,6 @@
 {
   "package": "x2_cerf_locomotion_handoff_20261124",
-  "created_utc": "2026-11-24T06:50:37+00:00",
+  "created_utc": "2026-11-24T06:51:41+00:00",
   "scope": "documentation-only; excludes checkpoints, raw traces, simulator assets, binaries, credentials, and private links",
   "source_snapshot": {
     "repository": "x2_locomotion_migration_20261124",
@@ -94,8 +94,8 @@
     },
     {
       "path": "agent_drafts/07_FINAL_HANDOFF_REVIEW.md",
-      "bytes": 7400,
-      "sha256": "1c33209aa7c1f78c21a57a558b15c9a77d0cf294c3a159d58112f1e3cf6ed4d2"
+      "bytes": 8330,
+      "sha256": "9238929d30289489285e6b0196ffc8d6f97a99666fa86378ec9a703c8096cc5a"
     },
     {
       "path": "source_maps/ORIGINAL_EVIDENCE_MAP.md",

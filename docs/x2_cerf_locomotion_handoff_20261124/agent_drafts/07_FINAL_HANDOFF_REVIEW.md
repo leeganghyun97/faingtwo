@@ -4,7 +4,7 @@
 검토 범위: `x2_cerf_locomotion_handoff_20261124`의 공개 경계, 역사적 보행 근거, 관측 차원·체크포인트 계보, 문서-only 실행 제한, 민감정보·바이너리, 다운로드 명령 및 manifest 준비 상태.  
 검토 방식: 문서와 스크립트의 읽기 전용 대조만 수행했다. Isaac/PhysX/PPO/checkpoint load 및 외부 GitHub publish/clone은 실행하지 않았다.
 
-## 최종 판정
+## 검토 당시 판정
 
 **`BLOCKED_FOR_PUBLIC_DOWNLOAD`**
 
@@ -75,3 +75,14 @@ python3 VERIFY_HANDOFF.py
 - [ ] README의 download command, branch 이름, `docs/x2_cerf_locomotion_handoff_20261124` 경로가 actual remote와 일치한다.
 
 이 체크리스트가 모두 통과할 때의 최종 상태는 **`PUBLIC_DOCUMENTATION_HANDOFF_READY`**다. 이는 문서 다운로드 준비 완료를 뜻할 뿐, original X2 source/assets/checkpoint의 strict reproduction 또는 verified continuous gait를 뜻하지 않는다.
+
+## 검토 후 반영 상태
+
+이 파일의 위 판정은 manifest와 public branch가 만들어지기 **전**의 독립 검토 기록이다. 이후 다음 P0 수정이 반영됐다.
+
+1. `HANDOFF_MANIFEST.json`을 생성했고, builder는 manifest 외 모든 public regular file을 목록·SHA-256·byte 수에 포함한다.
+2. verifier는 manifest에 없는 file과 manifest에만 있는 missing file을 모두 실패로 처리하도록 exact-set 검증을 한다.
+3. runtime 문서의 V18 `918D actor` 표기를 `918D physical intermediate → 948D full actor`로 수정했고 P0 U5의 87D/804D strict-load 불일치를 명시했다.
+4. public docs-only branch로 fresh clone 후 verifier가 통과한 기록은 `PUBLIC_DOWNLOAD_RECEIPT.md`에 남겼다.
+
+최종 branch publish 뒤에도 이 handoff는 문서-only 자료이며, native simulation/PPO 재현이나 continuous gait qualification을 의미하지 않는다.
