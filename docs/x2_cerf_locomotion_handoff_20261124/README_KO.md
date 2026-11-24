@@ -38,6 +38,7 @@
 10. `agent_drafts/04_INDEPENDENT_GAP_AND_SAFETY_REVIEW.md` — 공개 전 독립 누락·안전 검토
 11. `agent_drafts/05_NEW_HOST_EXPERIMENT_PLAYBOOK.md` — 새 호스트의 단계별 실행·판정 playbook
 12. `agent_drafts/06_LINEAGE_DIMENSION_VERIFICATION.md` — observation/checkpoint 차원과 strict-resume 금지 조합
+13. `PUBLIC_DOWNLOAD_RECEIPT.md` — 공개 branch의 fresh clone·manifest 검증 기록
 
 ## 범위와 공개 제한
 
